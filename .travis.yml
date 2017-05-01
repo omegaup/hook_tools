@@ -1,0 +1,16 @@
+language: python
+
+python:
+  - "3.2"
+  - "3.5"
+
+sudo: false
+
+addons:
+  apt:
+    packages:
+      - pep8
+
+script:
+  - python3 linters_test.py
+  - pep8 *.py test/*.py
