@@ -19,6 +19,7 @@ _LINTER_MAPPING = {
     'javascript': linters.JavaScriptLinter,
     'html': linters.HTMLLinter,
     'vue': linters.VueLinter,
+    'php': linters.PHPLinter,
 }
 
 
