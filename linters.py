@@ -340,6 +340,10 @@ class PHPLinter(Linter):
             new_contents, stderr = proc.communicate(contents)
             retcode = proc.wait()
 
+            if retcode != 0:
+                logging.debug('lint_php: Return code %d, stderr = %s',
+                              retcode, stderr)
+
             if retcode != 0 and not new_contents:
                 # phpcbf returns 1 if there was no change to the file. If there
                 # was an actual error, there won't be anything in stdout.
