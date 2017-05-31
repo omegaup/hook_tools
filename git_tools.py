@@ -5,6 +5,7 @@ Utility functions used to write git hooks.
 '''
 
 import argparse
+import logging
 import os
 import os.path
 import pipes
@@ -233,9 +234,12 @@ def parse_arguments(tool_description=None):
         args.files = files
     else:
         args.files = list(_files_to_consider(args))
+
     if args.verbose:
-        print('Files to consider: %s' % ' '.join(args.files),
-              file=sys.stderr)
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+    logging.debug('Files to consider: %s', ' '.join(args.files))
     return args
 
 

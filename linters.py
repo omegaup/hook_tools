@@ -4,6 +4,7 @@ from __future__ import print_function
 
 from abc import ABCMeta, abstractmethod
 from html.parser import HTMLParser
+import logging
 import os
 import os.path
 import re
@@ -56,6 +57,8 @@ class LinterException(Exception):
 
 
 def _custom_command(command, filename, original_filename):
+    '''A custom command.'''
+
     try:
         from shlex import quote as quote
     except ImportError:
@@ -100,6 +103,7 @@ def _lint_javascript(filename, contents, extra_commands=None):
         ]
 
         for args in commands:
+            logging.debug('lint_javascript: Running %s', args)
             subprocess.check_output(args, stderr=subprocess.STDOUT)
 
         with open(js_out.name, 'rb') as js_in:
@@ -111,6 +115,7 @@ def _lint_html(contents, strict):
 
     args = [_TIDY_PATH, '-q', '-config',
             os.path.join(git_tools.HOOK_TOOLS_ROOT, 'tidy.txt')]
+    logging.debug('lint_html: Running %s', args)
     with subprocess.Popen(args, stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
@@ -328,6 +333,7 @@ class PHPLinter(Linter):
 
     def run_one(self, filename, contents):
         args = self.__common_args + ['--stdin-path=%s' % filename]
+        logging.debug('lint_php: Running %s', args)
         with subprocess.Popen(args, stdin=subprocess.PIPE,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                               cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
@@ -362,6 +368,7 @@ class CustomLinter(Linter):
 
             for args in commands:
                 try:
+                    logging.debug('lint_custom: Running %s', args)
                     subprocess.check_output(args, stderr=subprocess.STDOUT)
                 except subprocess.CalledProcessError as cpe:
                     raise LinterException(str(cpe.output, encoding='utf-8'))
