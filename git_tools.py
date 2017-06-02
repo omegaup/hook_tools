@@ -6,6 +6,7 @@ Utility functions used to write git hooks.
 
 import argparse
 import logging
+import multiprocessing
 import os
 import os.path
 import pipes
@@ -185,7 +186,8 @@ def parse_arguments(tool_description=None):
     '''Parses the commandline arguments.'''
     parser = argparse.ArgumentParser(description=tool_description)
     parser.add_argument(
-        '--verbose', action='store_true', help='Prints verbose information')
+        '--verbose', '-v', action='store_true',
+        help='Prints verbose information')
     parser.add_argument(
         '--config-file',
         default=os.path.join(root_dir(), '.lint.config.json'),
@@ -194,6 +196,9 @@ def parse_arguments(tool_description=None):
         '--continuous-integration', action='store_true',
         help=('Assumes this is an unsupervised environment. '
               'Disables all prompts.'))
+    parser.add_argument(
+        '--jobs', '-j', type=int, help='Number of parallel jobs',
+        default=multiprocessing.cpu_count())
     subparsers = parser.add_subparsers(dest='tool')
     subparsers.required = True
 

@@ -6,6 +6,8 @@
 from __future__ import print_function
 
 import json
+import logging
+import multiprocessing
 import os.path
 import re
 import sys
@@ -23,46 +25,56 @@ _LINTER_MAPPING = {
 }
 
 
-def run_linter(args, linter, files, validate_only):
+def _run_linter_one(args, linter, root, filename, validate_only):
+    '''Runs the linter against one file.'''
+    contents = git_tools.file_contents(args, root, filename)
+    try:
+        new_contents, violations = linter.run_one(filename, contents)
+    except linters.LinterException as lex:
+        print('File %s%s%s lint failed:\n%s' %
+              (git_tools.COLORS.FAIL, filename,
+               git_tools.COLORS.NORMAL, lex.message.decode('utf-8')),
+              file=sys.stderr)
+        return filename
+    if contents != new_contents:
+        violations_message = ', '.join(
+            '%s%s%s' %
+            (git_tools.COLORS.FAIL, violation, git_tools.COLORS.NORMAL)
+            for violation in violations)
+        if validate_only:
+            print('File %s%s%s lint failed: %s' %
+                  (git_tools.COLORS.HEADER, filename,
+                   git_tools.COLORS.NORMAL, violations_message),
+                  file=sys.stderr)
+        else:
+            print('Fixing %s%s%s' %
+                  (git_tools.COLORS.HEADER, filename,
+                   git_tools.COLORS.NORMAL),
+                  file=sys.stderr)
+            with open(os.path.join(root, filename), 'wb') as outfile:
+                outfile.write(new_contents)
+        return filename
+    return None
+
+
+def _run_linter(args, linter, files, validate_only):
     '''Runs the linter against all files.'''
     root = git_tools.root_dir()
-    file_violations = set()
-    for filename in files:
-        contents = git_tools.file_contents(args, root, filename)
-        try:
-            new_contents, violations = linter.run_one(filename, contents)
-        except linters.LinterException as lex:
-            print('File %s%s%s lint failed:\n%s' %
-                  (git_tools.COLORS.FAIL, filename,
-                   git_tools.COLORS.NORMAL, lex.message.decode('utf-8')),
-                  file=sys.stderr)
-            file_violations.add(filename)
-            continue
-        if contents != new_contents:
-            file_violations.add(filename)
-            violations_message = ', '.join(
-                '%s%s%s' %
-                (git_tools.COLORS.FAIL, violation, git_tools.COLORS.NORMAL)
-                for violation in violations)
-            if validate_only:
-                print('File %s%s%s lint failed: %s' %
-                      (git_tools.COLORS.HEADER, filename,
-                       git_tools.COLORS.NORMAL, violations_message),
-                      file=sys.stderr)
-            else:
-                print('Fixing %s%s%s' %
-                      (git_tools.COLORS.HEADER, filename,
-                       git_tools.COLORS.NORMAL),
-                      file=sys.stderr)
-                with open(os.path.join(root, filename), 'wb') as outfile:
-                    outfile.write(new_contents)
-    return file_violations
+    logging.debug('%s: Files to consider: %s', linter.name, ' '.join(files))
+    logging.debug('%s: Running with %d threads', linter.name, args.jobs)
+    with multiprocessing.Pool(args.jobs) as pool:
+        file_violations = pool.starmap(
+            _run_linter_one,
+            [(args, linter, root, filename, validate_only)
+             for filename in files])
+    return set(violation for violation in file_violations
+               if violation is not None)
 
 
 def main():
     '''Runs the linters against the chosen files.'''
 
-    args = git_tools.parse_arguments(tool_description='purges whitespace')
+    args = git_tools.parse_arguments(tool_description='lints a project')
     if not args.files:
         return 0
 
@@ -100,8 +112,8 @@ def main():
             filename for filename in filtered_files
             if all(not r.match(filename) for r in blacklist)]
 
-        file_violations |= run_linter(args, _LINTER_MAPPING[linter](options),
-                                      filtered_files, validate_only)
+        file_violations |= _run_linter(args, _LINTER_MAPPING[linter](options),
+                                       filtered_files, validate_only)
 
     if file_violations:
         if validate_only:

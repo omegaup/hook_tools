@@ -145,6 +145,11 @@ class Linter(object):
         '''Runs the linter against |contents|.'''
         pass
 
+    @property
+    def name(self):
+        '''Gets the name of the linter.'''
+        return 'linter'
+
 
 class JavaScriptLinter(Linter):
     '''Runs the Google Closure Compiler linter+prettier against |files|.'''
@@ -162,6 +167,10 @@ class JavaScriptLinter(Linter):
         except subprocess.CalledProcessError as cpe:
             raise LinterException(str(b'\n'.join(cpe.output.split(b'\n')[1:]),
                                       encoding='utf-8'))
+
+    @property
+    def name(self):
+        return 'javascript'
 
 
 class WhitespaceLinter(Linter):
@@ -201,6 +210,10 @@ class WhitespaceLinter(Linter):
                 contents = replaced
 
         return contents, violations
+
+    @property
+    def name(self):
+        return 'whitespace'
 
 
 class VueHTMLParser(HTMLParser):
@@ -303,6 +316,10 @@ class VueLinter(Linter):
 
         return ('\n\n'.join(new_sections)).encode('utf-8') + b'\n', ['vue']
 
+    @property
+    def name(self):
+        return 'vue'
+
 
 class HTMLLinter(Linter):
     '''Runs HTML Tidy.'''
@@ -316,6 +333,10 @@ class HTMLLinter(Linter):
         return (_lint_html(contents,
                            strict=self.__options.get('strict', False)),
                 ['html'])
+
+    @property
+    def name(self):
+        return 'html'
 
 
 class PHPLinter(Linter):
@@ -350,6 +371,10 @@ class PHPLinter(Linter):
                 raise LinterException(stderr)
         return new_contents, ['php']
 
+    @property
+    def name(self):
+        return 'php'
+
 
 class CustomLinter(Linter):
     '''Runs a custom command as linter.'''
@@ -379,6 +404,10 @@ class CustomLinter(Linter):
 
             with open(tmp.name, 'rb') as tmp_in:
                 return tmp_in.read(), ['custom']
+
+    @property
+    def name(self):
+        return 'custom (%s)' % (self.__options.get('commands', []),)
 
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
