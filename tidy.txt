@@ -8,6 +8,7 @@ indent: auto
 join-classes: yes
 logical-emphasis: yes
 markup: yes
+new-blocklevel-tags: transition
 newline: LF
 sort-attributes: alpha
 warn-proprietary-attributes: no
