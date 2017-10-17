@@ -33,6 +33,16 @@ class COLORS:
     NORMAL = '\033[0m'
 
 
+class Argument:
+    '''Class that represents a single argument for argparse.ArgumentParser.'''
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+
+    def add_to(self, parser):
+        parser.add_argument(*self.args, **self.kwargs)
+
+
 def _get_explicit_file_list(args):
     '''Returns the explicit file list from the commandline.
 
@@ -182,7 +192,7 @@ def root_dir():
         universal_newlines=True).strip()
 
 
-def parse_arguments(tool_description=None):
+def parse_arguments(tool_description=None, extra_arguments=()):
     '''Parses the commandline arguments.'''
     parser = argparse.ArgumentParser(description=tool_description)
     parser.add_argument(
@@ -199,6 +209,8 @@ def parse_arguments(tool_description=None):
     parser.add_argument(
         '--jobs', '-j', type=int, help='Number of parallel jobs',
         default=multiprocessing.cpu_count())
+    for argument in extra_arguments:
+        argument.add_to(parser)
     subparsers = parser.add_subparsers(dest='tool')
     subparsers.required = True
 
