@@ -46,14 +46,20 @@ _JAVASCRIPT_TOOLCHAIN_VERIFIED = False
 class LinterException(Exception):
     '''A fatal exception during linting.'''
 
-    def __init__(self, message):
+    def __init__(self, message, fixable=True):
         super().__init__(message)
         self.__message = message
+        self.__fixable = fixable
 
     @property
     def message(self):
         '''A message that can be presented to the user.'''
         return self.__message
+
+    @property
+    def fixable(self):
+        '''Whether this exception supports being fixed.'''
+        return self.__fixable
 
 
 def _custom_command(command, filename, original_filename):
@@ -138,7 +144,7 @@ class Linter(object):
     __metaclass__ = ABCMeta
 
     def __init__(self):
-        super().__init__()
+        pass
 
     @abstractmethod
     def run_one(self, filename, contents):
@@ -376,6 +382,56 @@ class PHPLinter(Linter):
         return 'php'
 
 
+class PythonLinter(Linter):
+    '''Runs pep8 and pylint.'''
+    # pylint: disable=R0903
+
+    def __init__(self, options=None):
+        super().__init__()
+        self.__options = options or {}
+
+    def run_one(self, filename, contents):
+        with tempfile.TemporaryDirectory(prefix='python_linter_') as tmpdir:
+            tmp_path = os.path.join(tmpdir, os.path.basename(filename))
+            with open(tmp_path, 'wb') as pyfile:
+                pyfile.write(contents)
+
+            python3 = _which('python3')
+
+            args = [python3, '-m', 'pep8', tmp_path]
+            if 'pep8_config' in self.__options:
+                args.append('--config=%s' % self.__options['pep8_config'])
+            try:
+                logging.debug('lint_python: Running %s', args)
+                subprocess.check_output(args, stderr=subprocess.STDOUT)
+            except subprocess.CalledProcessError as cpe:
+                raise LinterException(
+                    str(cpe.output, encoding='utf-8').replace(tmp_path,
+                                                              filename),
+                    fixable=False)
+
+            # We need to disable import-error since the file won't be checked
+            # in the repository, but in a temporary directory.
+            args = [python3, '-m', 'pylint', '--output-format=parseable',
+                    '--reports=no', '--disable=import-error', tmp_path]
+            if 'pylint_config' in self.__options:
+                args.append('--rcfile=%s' % self.__options['pylint_config'])
+            try:
+                logging.debug('lint_python: Running %s', args)
+                subprocess.check_output(args, stderr=subprocess.STDOUT)
+            except subprocess.CalledProcessError as cpe:
+                raise LinterException(
+                    str(cpe.output, encoding='utf-8').replace(tmp_path,
+                                                              filename),
+                    fixable=False)
+
+            return contents, []
+
+    @property
+    def name(self):
+        return 'python'
+
+
 class CustomLinter(Linter):
     '''Runs a custom command as linter.'''
     # pylint: disable=R0903
@@ -400,7 +456,8 @@ class CustomLinter(Linter):
                     logging.debug('lint_custom: Running %s', args)
                     subprocess.check_output(args, stderr=subprocess.STDOUT)
                 except subprocess.CalledProcessError as cpe:
-                    raise LinterException(str(cpe.output, encoding='utf-8'))
+                    raise LinterException(str(cpe.output, encoding='utf-8'),
+                                          fixable=False)
 
             with open(tmp.name, 'rb') as tmp_in:
                 return tmp_in.read(), ['custom']

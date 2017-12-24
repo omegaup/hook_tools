@@ -30,6 +30,11 @@ linters soportados (con sus respectivas opciones) son:
     sección `<script>..</script>` del template.
 * `php`: Corre PHP Code Beautifier.
   * `standard`: Una cadena con la ruta del estándar de phpcbf.
+* `python`: Corre pep8 y pylint.
+  * `pep8_config`: Una cadena con la ruta del archivo de configuración para
+     pep8.
+  * `pylint_config`: Una cadena con la ruta del archivo de configuración para
+     pylint.
 * `custom`: Corre comandos personalizados.
   * `commands`: Un arreglo con comandos.
 

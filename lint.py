@@ -22,6 +22,7 @@ _LINTER_MAPPING = {
     'html': linters.HTMLLinter,
     'vue': linters.VueLinter,
     'php': linters.PHPLinter,
+    'python': linters.PythonLinter,
 }
 
 
@@ -33,9 +34,9 @@ def _run_linter_one(args, linter, root, filename, validate_only):
     except linters.LinterException as lex:
         print('File %s%s%s lint failed:\n%s' %
               (git_tools.COLORS.FAIL, filename,
-               git_tools.COLORS.NORMAL, lex.message.decode('utf-8')),
+               git_tools.COLORS.NORMAL, lex.message),
               file=sys.stderr)
-        return filename
+        return filename, lex.fixable
     if contents != new_contents:
         violations_message = ', '.join(
             '%s%s%s' %
@@ -53,8 +54,8 @@ def _run_linter_one(args, linter, root, filename, validate_only):
                   file=sys.stderr)
             with open(os.path.join(root, filename), 'wb') as outfile:
                 outfile.write(new_contents)
-        return filename
-    return None
+        return filename, True
+    return None, False
 
 
 def _run_linter(args, linter, files, validate_only):
@@ -62,13 +63,13 @@ def _run_linter(args, linter, files, validate_only):
     root = git_tools.root_dir()
     logging.debug('%s: Files to consider: %s', linter.name, ' '.join(files))
     logging.debug('%s: Running with %d threads', linter.name, args.jobs)
-    with multiprocessing.Pool(args.jobs) as pool:
-        file_violations = pool.starmap(
-            _run_linter_one,
-            [(args, linter, root, filename, validate_only)
-             for filename in files])
-    return set(violation for violation in file_violations
-               if violation is not None)
+    results = multiprocessing.Pool(args.jobs).starmap(
+        _run_linter_one,
+        [(args, linter, root, filename, validate_only)
+         for filename in files])
+    return (set(violation for violation, _ in results
+                if violation is not None),
+            any(fixable for _, fixable in results))
 
 
 def main():
@@ -76,7 +77,7 @@ def main():
 
     args = git_tools.parse_arguments(tool_description='lints a project')
     if not args.files:
-        return 0
+        return
 
     # If running in an automated environment, we can close stdin.
     # This will disable all prompts.
@@ -90,6 +91,7 @@ def main():
         config = json.load(config_file)
 
     file_violations = set()
+    fixable = False
 
     for linter, options in config['lint'].items():
         if linter not in _LINTER_MAPPING:
@@ -112,11 +114,18 @@ def main():
             filename for filename in filtered_files
             if all(not r.match(filename) for r in blacklist)]
 
-        file_violations |= _run_linter(args, _LINTER_MAPPING[linter](options),
-                                       filtered_files, validate_only)
+        local_violations, local_fixable = _run_linter(
+            args, _LINTER_MAPPING[linter](options), filtered_files,
+            validate_only)
+        file_violations |= local_violations
+        fixable |= local_fixable
 
     if file_violations:
-        if validate_only:
+        if not fixable:
+            print('%sErrors cannot be automatically fixed.%s' %
+                  (git_tools.COLORS.FAIL, git_tools.COLORS.NORMAL),
+                  file=sys.stderr)
+        elif validate_only:
             if git_tools.attempt_automatic_fixes(sys.argv[0], args,
                                                  file_violations):
                 sys.exit(1)
