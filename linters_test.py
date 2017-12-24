@@ -124,6 +124,15 @@ class TestLinters(unittest.TestCase):
             b'<?php\necho [\'foo\'];\n')
         self.assertEqual(violations, ['php'])
 
+    def test_python(self):
+        """Tests PythonLinter."""
+
+        linter = linters.PythonLinter()
+
+        with self.assertRaisesRegex(linters.LinterException, r'.*\bE111\b.*'):
+            linter.run_one(
+                'test.py', b'def main():\n  pass\n')
+
 
 if __name__ == '__main__':
     unittest.main()

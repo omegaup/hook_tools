@@ -35,11 +35,15 @@ class COLORS:
 
 class Argument:
     '''Class that represents a single argument for argparse.ArgumentParser.'''
+    # pylint: disable=R0903
+
     def __init__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
 
     def add_to(self, parser):
+        '''Adds an additional argument to the parser.'''
+
         parser.add_argument(*self.args, **self.kwargs)
 
 
@@ -165,11 +169,13 @@ def prompt(question, default=True):
 
         response = response.strip().lower()
         if not response:
-            return default
+            break
         if yes_str.startswith(response):
             return True
         if no_str.startswith(response):
             return False
+
+    return default
 
 
 def file_contents(args, root, filename):

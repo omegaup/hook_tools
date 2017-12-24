@@ -9,7 +9,7 @@ import sys
 def main():
     """Main entrypoint."""
 
-    filename, _ = sys.argv[1:]
+    filename = sys.argv[1]
 
     with open(filename, 'r') as input_file:
         contents = input_file.read()
