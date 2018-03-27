@@ -327,6 +327,63 @@ class VueLinter(Linter):
         return 'vue'
 
 
+class VueIdLinter(Linter):
+    '''A linter for .vue files to avoid the use of id´s.'''
+    # pylint: disable=R0903
+
+    def __init__(self, options=None):
+        super().__init__()
+        self.__options = options or {}
+
+    def run_one(self, filename, contents):
+        parser = VueHTMLParser()
+        try:
+            sections = parser.parse(contents.decode('utf-8'))
+        except AssertionError as assertion:
+            raise LinterException(str(assertion))
+
+        new_sections = []
+        for tag, starttag, section_contents in sections:
+            try:
+                if tag == 'template':
+                    wrapped_contents = (
+                        b'<!DOCTYPE html>\n<html>\n<head>\n'
+                        b'<title></title>\n</head><body>\n' +
+                        section_contents.encode('utf-8') +
+                        b'\n</body>\n</html>')
+                    lines = _lint_html(
+                        wrapped_contents,
+                        strict=self.__options.get('strict',
+                                                  True)).split(b'\n')
+
+                    is_linter_on = True
+                    for index, line in enumerate(lines):
+                        line = line.decode('utf-8')
+                        if line.find('<!-- id-linter on -->') >= 0:
+                            is_linter_on = True
+                        elif line.find('<!-- id-linter off -->') >= 0:
+                            is_linter_on = False
+                        if line.find(' id=') >= 0 and is_linter_on == True:
+                            raise LinterException(
+                                'id attribute used in vue files is ' +
+                                'discouraged in line %d\n' % (index-4),
+                                fixable=False)
+
+                else:
+                    new_sections.append('%s\n%s\n</%s>' % (
+                        starttag, section_contents, tag))
+            except subprocess.CalledProcessError as cpe:
+                raise LinterException(
+                    str(b'\n'.join(cpe.output.split(b'\n')[1:]),
+                        encoding='utf-8'))
+
+        return contents, ['vueid']
+
+    @property
+    def name(self):
+        return 'vueid'
+
+
 class HTMLLinter(Linter):
     '''Runs HTML Tidy.'''
     # pylint: disable=R0903

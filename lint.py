@@ -21,6 +21,7 @@ _LINTER_MAPPING = {
     'javascript': linters.JavaScriptLinter,
     'html': linters.HTMLLinter,
     'vue': linters.VueLinter,
+    'vueid': linters.VueIdLinter,
     'php': linters.PHPLinter,
     'python': linters.PythonLinter,
 }
