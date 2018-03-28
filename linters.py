@@ -260,12 +260,11 @@ class VueHTMLParser(HTMLParser):
         self._stack.append((tag, self.get_starttag_text(), (line - 1, col)))
         for attributes in attrs:
             for attr in attributes:
-                if attr == 'id' and self._id_linter_enabled == True:
+                if attr == 'id' and self._id_linter_enabled is True:
                     raise LinterException(
                         'Use of "id" attribute in .vue files is ' +
                         'discouraged. Found one in line %d\n' % (line),
                         fixable=False)
-
 
     def handle_endtag(self, tag):
         while self._stack and self._stack[-1][0] != tag:
@@ -281,7 +280,7 @@ class VueHTMLParser(HTMLParser):
     def handle_comment(self, data):
         if data.find('id-lint ') >= 0:
             data = data.strip()
-            data_flag = data.split( )
+            data_flag = data.split(' ')
             if data_flag[1] == 'off':
                 self._id_linter_enabled = False
             elif data_flag[1] == 'on':
