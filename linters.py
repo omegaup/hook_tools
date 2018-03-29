@@ -260,7 +260,7 @@ class VueHTMLParser(HTMLParser):
         self._stack.append((tag, self.get_starttag_text(), (line - 1, col)))
         if not self._id_linter_enabled:
             return
-        for name, value in attrs:
+        for name, _ in attrs:
             if name == 'id':
                 raise LinterException(
                     'Use of "id" attribute in .vue files is ' +
