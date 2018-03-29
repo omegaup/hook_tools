@@ -258,13 +258,14 @@ class VueHTMLParser(HTMLParser):
     def handle_starttag(self, tag, attrs):
         line, col = self.getpos()
         self._stack.append((tag, self.get_starttag_text(), (line - 1, col)))
-        for attributes in attrs:
-            for attr in attributes:
-                if attr == 'id' and self._id_linter_enabled is True:
-                    raise LinterException(
-                        'Use of "id" attribute in .vue files is ' +
-                        'discouraged. Found one in line %d\n' % (line),
-                        fixable=False)
+        if not self._id_linter_enabled:
+            return
+        for name, value in attrs:
+            if name == 'id':
+                raise LinterException(
+                    'Use of "id" attribute in .vue files is ' +
+                    'discouraged. Found one in line %d\n' % (line),
+                    fixable=False)
 
     def handle_endtag(self, tag):
         while self._stack and self._stack[-1][0] != tag:
@@ -278,13 +279,9 @@ class VueHTMLParser(HTMLParser):
             self._tags.append((tag, starttag, begin, (line - 1, col)))
 
     def handle_comment(self, data):
-        if data.find('id-lint ') >= 0:
-            data = data.strip()
-            data_flag = data.split(' ')
-            if data_flag[1] == 'off':
-                self._id_linter_enabled = False
-            elif data_flag[1] == 'on':
-                self._id_linter_enabled = True
+        if data.find('id-lint ') < 0:
+            return
+        self._id_linter_enabled = data.strip().split()[1] == 'on'
 
 
 class VueLinter(Linter):
@@ -321,7 +318,6 @@ class VueLinter(Linter):
                         wrapped_contents,
                         strict=self.__options.get('strict',
                                                   False)).split(b'\n')
-
                     new_section_contents = b'\n'.join(
                         line.rstrip() for line in lines[6:-3])
                     new_sections.append('%s\n%s\n</%s>' % (
