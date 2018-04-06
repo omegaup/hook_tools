@@ -23,12 +23,12 @@ _LINTER_MAPPING = {
     'vue': linters.VueLinter,
     'php': linters.PHPLinter,
     'python': linters.PythonLinter,
+    'i18n': linters.I18nLinter,
 }
 
 
-def _run_linter_one(args, linter, root, filename, validate_only):
+def _run_linter_one(args, linter, root, filename, contents, validate_only):
     '''Runs the linter against one file.'''
-    contents = git_tools.file_contents(args, root, filename)
     try:
         new_contents, violations = linter.run_one(filename, contents)
     except linters.LinterException as lex:
@@ -58,18 +58,62 @@ def _run_linter_one(args, linter, root, filename, validate_only):
     return None, False
 
 
-def _run_linter(args, linter, files, validate_only):
+def _run_linter_all(args, linter, root, files, validate_only):
+    try:
+        new_contents = linter.run_all(files,
+          lambda filename: git_tools.file_contents(args, root, filename))
+    except linters.LinterException as lex:
+        print('Files %s%s%s lint failed:\n%s' %
+              (git_tools.COLORS.FAIL, files,
+               git_tools.COLORS.NORMAL, lex.message),
+              file=sys.stderr)
+        return files, lex.fixable
+    file_contents = {}
+    if type(new_contents).__name__ == 'tuple':
+        file_contents, violations = new_contents
+
+    if file_contents:
+        violations_message = ', '.join(
+            '%s%s%s' %
+            (git_tools.COLORS.FAIL, violation, git_tools.COLORS.NORMAL)
+            for violation in violations)
+        if validate_only:
+            print('File %s%s%s lint failed: %s' %
+                  (git_tools.COLORS.HEADER, files,
+                   git_tools.COLORS.NORMAL, violations_message),
+                  file=sys.stderr)
+        else:
+            print('Fixing %s%s%s' %
+                  (git_tools.COLORS.HEADER, files,
+                   git_tools.COLORS.NORMAL),
+                  file=sys.stderr)
+            for filename in file_contents:
+                with open(os.path.join(root, filename), 'wb') as outfile:
+                    outfile.write(file_contents[filename].encode())
+        return files, True
+
+    return None, False
+
+
+def _run_linter(args, linter, filenames, validate_only):
     '''Runs the linter against all files.'''
     root = git_tools.root_dir()
-    logging.debug('%s: Files to consider: %s', linter.name, ' '.join(files))
+    logging.debug('%s: Files to consider: %s', linter.name, ' '.join(filenames))
     logging.debug('%s: Running with %d threads', linter.name, args.jobs)
-    results = multiprocessing.Pool(args.jobs).starmap(
-        _run_linter_one,
-        [(args, linter, root, filename, validate_only)
-         for filename in files])
-    return (set(violation for violation, _ in results
-                if violation is not None),
-            any(fixable for _, fixable in results))
+    files = dict((filename, git_tools.file_contents(args, root, filename))
+      for filename in filenames)
+    results = multiprocessing.Pool(args.jobs).starmap(_run_linter_one,
+        [(args, linter, root, filename, contents, validate_only)
+         for filename, contents in files.items()])
+    results.append(_run_linter_all(args, linter, root, filenames, validate_only))
+    if linter.name != 'i18n':
+        return (set(violation for violation, _ in results
+            if violation is not None),
+          any(fixable for _, fixable in results))
+    else:
+        for violation, fixable in results:
+            if violation is not None:
+                return set(violation), fixable
 
 
 def main():
@@ -113,7 +157,6 @@ def main():
         filtered_files = [
             filename for filename in filtered_files
             if all(not r.match(filename) for r in blacklist)]
-
         local_violations, local_fixable = _run_linter(
             args, _LINTER_MAPPING[linter](options), filtered_files,
             validate_only)
