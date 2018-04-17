@@ -482,7 +482,6 @@ class I18nLinter(Linter):
         result.append('});\n')
         return '\n'.join(result)
 
-
     def _generate_json(self, lang, strings):
         '''Generates the JSON version of the i18n file.'''
 
