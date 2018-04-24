@@ -496,7 +496,7 @@ class I18nLinter(Linter):
         result = []
         for key in sorted(strings.keys()):
             result.append('%s = "%s"\n' %
-                            (key, strings[key][lang].replace('"', r'\"')))
+                          (key, strings[key][lang].replace('"', r'\"')))
         return ''.join(result)
 
     def _pseudoloc(self, s):
@@ -527,8 +527,9 @@ class I18nLinter(Linter):
 
         for lang in langs:
             filename = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
-            contents = (file_contents[filename] if filename in file_contents
-                        and type(file_contents).__name__ != 'list'
+            contents = (file_contents[filename]
+                        if filename in file_contents and
+                        type(file_contents).__name__ != 'list'
                         else contents_callback(filename)).split(b'\n')[:-1]
             languages.add(lang)
             last_key = ''
@@ -547,11 +548,11 @@ class I18nLinter(Linter):
                     strings[key][lang] = match.group(1).replace(r'\"', '"')
                 except:  # pylint: disable=bare-except
                     raise LinterException('Invalid i18n line "%s" in %s:%d' %
-                        (row.strip(), filename, lineno + 1), fixable=False)
+                     (row.strip(), filename, lineno + 1), fixable=False)
 
         if not_sorted:
             print('Entries in %s are not sorted.'
-                % ', '.join(sorted(not_sorted)), file=sys.stderr)
+                  % ', '.join(sorted(not_sorted)), file=sys.stderr)
 
         for key, values in strings.items():
             missing_languages = languages.difference(list(values.keys()))
@@ -560,13 +561,13 @@ class I18nLinter(Linter):
 
             if missing_languages:
                 print('%s%s%s' % (self._HEADER, key, self._NORMAL),
-                    file=sys.stderr)
+                      file=sys.stderr)
 
                 for lang in sorted(languages):
                     if lang in values:
                         print('\t%s%-10s%s %s' %
-                            (self._OKGREEN, lang, self._NORMAL, values[lang]),
-                            file=sys.stderr)
+                              (self._OKGREEN, lang, self._NORMAL,
+                                values[lang]), file=sys.stderr)
                     else:
                         print('\t%s%-10s%s missing%s' %
                             (self._OKGREEN, lang, self._FAIL, self._NORMAL),
@@ -592,7 +593,7 @@ class I18nLinter(Linter):
             js_new_contents = self._generate_javascript(language, strings)
             if js_contents.decode('utf-8') != js_new_contents:
                 print('Entries in %s do not match the .lang file.' %
-                    js_lang_path, file=sys.stderr)
+                      js_lang_path, file=sys.stderr)
                 new_contents[js_lang_path] = js_new_contents.encode('utf-8')
                 original_contents[js_lang_path] = js_contents
 
@@ -601,7 +602,7 @@ class I18nLinter(Linter):
                 language, strings), sort_keys=True, indent='\t')
             if json_contents.decode('utf-8') != json_new_contents:
                 print('Entries in %s do not match the .lang file.' %
-                    json_lang_path, file=sys.stderr)
+                      json_lang_path, file=sys.stderr)
                 new_contents[json_lang_path] = json_new_contents.encode(
                     'utf-8')
                 original_contents[json_lang_path] = json_contents

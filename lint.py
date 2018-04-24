@@ -39,7 +39,7 @@ def _run_linter_one(args, linter, root, filename, contents, validate_only):
         return filename, lex.fixable
 
     return _report_linter_results(root, filename, contents, new_contents,
-                                      validate_only, violations, True)
+                                  validate_only, violations, True)
 
 
 def _run_linter_all(args, linter, root, files, validate_only):
@@ -49,8 +49,8 @@ def _run_linter_all(args, linter, root, files, validate_only):
     except linters.LinterException as lex:
         print('Files %s%s%s lint failed:\n%s' %
               (git_tools.COLORS.FAIL, ', '.join(
-              [filename for filename in files]), git_tools.COLORS.NORMAL,
-              lex.message), file=sys.stderr)
+               [filename for filename in files]), git_tools.COLORS.NORMAL,
+               lex.message), file=sys.stderr)
         return [(filename, lex.fixable) for filename in files]
 
     result = []
@@ -92,9 +92,9 @@ def _run_linter(args, linter, filenames, validate_only):
                   linter.name, ' '.join(filenames))
     logging.debug('%s: Running with %d threads', linter.name, args.jobs)
     files = dict((filename, git_tools.file_contents(args, root, filename))
-      for filename in filenames)
+       for filename in filenames)
     results = multiprocessing.Pool(args.jobs).starmap(_run_linter_one,
-        [(args, linter, root, filename, contents, validate_only)
+         [(args, linter, root, filename, contents, validate_only)
          for filename, contents in files.items()])
     results.extend(_run_linter_all(args, linter, root, filenames,
                                    validate_only))
