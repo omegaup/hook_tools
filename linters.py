@@ -490,7 +490,6 @@ class I18nLinter(Linter):
             json_map[key] = strings[key][lang]
         return json_map
 
-
     def _generate_pseudo(self, lang, strings):
         '''Generates pseudoloc file'''
 
@@ -499,7 +498,6 @@ class I18nLinter(Linter):
             result.append('%s = "%s"\n' %
                             (key, strings[key][lang].replace('"', r'\"')))
         return ''.join(result)
-
 
     def _pseudoloc(self, s):
         '''Converts the pseudoloc version of s.'''

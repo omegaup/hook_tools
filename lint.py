@@ -38,10 +38,8 @@ def _run_linter_one(args, linter, root, filename, contents, validate_only):
               file=sys.stderr)
         return filename, lex.fixable
 
-    if contents != new_contents:
-        return _report_linter_results(root, filename, contents, new_contents,
+    return _report_linter_results(root, filename, contents, new_contents,
                                       validate_only, violations, True)
-    return None, False
 
 
 def _run_linter_all(args, linter, root, files, validate_only):
