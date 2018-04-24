@@ -548,7 +548,7 @@ class I18nLinter(Linter):
                     strings[key][lang] = match.group(1).replace(r'\"', '"')
                 except:  # pylint: disable=bare-except
                     raise LinterException('Invalid i18n line "%s" in %s:%d' %
-                     (row.strip(), filename, lineno + 1), fixable=False)
+                      (row.strip(), filename, lineno + 1), fixable=False)
 
         if not_sorted:
             print('Entries in %s are not sorted.'
@@ -567,15 +567,15 @@ class I18nLinter(Linter):
                     if lang in values:
                         print('\t%s%-10s%s %s' %
                               (self._OKGREEN, lang, self._NORMAL,
-                                values[lang]), file=sys.stderr)
+                               values[lang]), file=sys.stderr)
                     else:
                         print('\t%s%-10s%s missing%s' %
-                            (self._OKGREEN, lang, self._FAIL, self._NORMAL),
+                              (self._OKGREEN, lang, self._FAIL, self._NORMAL),
                              file=sys.stderr)
                         missing_items_lang.add(lang)
 
                 raise LinterException('There are missing items in the %s.lang'
-                    ' file' % missing_items_lang, fixable=False)
+                     ' file' % missing_items_lang, fixable=False)
 
             if key == 'locale':
                 values['pseudo'] = 'pseudo'
