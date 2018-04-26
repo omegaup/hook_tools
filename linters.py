@@ -153,6 +153,7 @@ class Linter(object):
         '''Runs the linter against |contents|.'''
         pass
 
+    @staticmethod
     def run_all(self, file_contents, contents_callback):
         '''Runs the linter against a subset of files.'''
         return [], [], []
@@ -470,6 +471,7 @@ class I18nLinter(Linter):
         super().__init__()
         self.__options = options or {}
 
+    @staticmethod
     def _generate_javascript(self, lang, strings):
         '''Generates the JavaScript version of the i18n file.'''
 
@@ -482,6 +484,7 @@ class I18nLinter(Linter):
         result.append('});\n')
         return '\n'.join(result)
 
+    @staticmethod
     def _generate_json(self, lang, strings):
         '''Generates the JSON version of the i18n file.'''
 
@@ -490,6 +493,7 @@ class I18nLinter(Linter):
             json_map[key] = strings[key][lang]
         return json_map
 
+    @staticmethod
     def _generate_pseudo(self, lang, strings):
         '''Generates pseudoloc file'''
 
@@ -499,13 +503,14 @@ class I18nLinter(Linter):
                           (key, strings[key][lang].replace('"', r'\"')))
         return ''.join(result)
 
-    def _pseudoloc(self, s):
+    @staticmethod
+    def _pseudoloc(self, string):
         '''Converts the pseudoloc version of s.'''
         healthy = 'elsot'
         yummy = '31507'
         table = dict([(ord(healthy[i]), yummy[i]) for i in range(
             len(healthy))])
-        tokens = re.split(r'(%\([a-zA-Z0-9_-]+\))', s)
+        tokens = re.split(r'(%\([a-zA-Z0-9_-]+\))', string)
         for i, token in enumerate(tokens):
             if token.startswith('%(') and token.endswith(')'):
                 continue
@@ -607,8 +612,7 @@ class I18nLinter(Linter):
                 original_contents[json_lang_path] = json_contents
 
             template_content = contents_callback(template_path)
-            template_new_contents = self._generate_pseudo(
-                    language, strings)
+            template_new_contents = self._generate_pseudo(language, strings)
             if language == 'pseudo':
                 new_contents[template_path] = template_new_contents.encode(
                     'utf-8')
