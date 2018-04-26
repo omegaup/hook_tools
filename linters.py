@@ -527,10 +527,7 @@ class I18nLinter(Linter):
 
         for lang in langs:
             filename = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
-            contents = (file_contents[filename]
-                        if filename in file_contents and
-                        type(file_contents).__name__ != 'list'
-                        else contents_callback(filename)).split(b'\n')[:-1]
+            contents = contents_callback(filename).split(b'\n')[:-1]
             languages.add(lang)
             last_key = ''
             for lineno, line in enumerate(contents):
