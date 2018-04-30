@@ -153,6 +153,7 @@ class Linter(object):
         '''Runs the linter against |contents|.'''
         pass
 
+    @abstractmethod
     def run_all(self, file_contents, contents_callback):
         '''Runs the linter against a subset of files.'''
         return [], [], []
@@ -470,7 +471,8 @@ class I18nLinter(Linter):
         super().__init__()
         self.__options = options or {}
 
-    def _generate_javascript(self, lang, strings):
+    @staticmethod
+    def _generate_javascript(lang, strings):
         '''Generates the JavaScript version of the i18n file.'''
 
         result = []
@@ -482,7 +484,8 @@ class I18nLinter(Linter):
         result.append('});\n')
         return '\n'.join(result)
 
-    def _generate_json(self, lang, strings):
+    @staticmethod
+    def _generate_json(lang, strings):
         '''Generates the JSON version of the i18n file.'''
 
         json_map = {}
@@ -490,7 +493,8 @@ class I18nLinter(Linter):
             json_map[key] = strings[key][lang]
         return json_map
 
-    def _generate_pseudo(self, lang, strings):
+    @staticmethod
+    def _generate_pseudo(lang, strings):
         '''Generates pseudoloc file'''
 
         result = []
@@ -499,13 +503,11 @@ class I18nLinter(Linter):
                           (key, strings[key][lang].replace('"', r'\"')))
         return ''.join(result)
 
-    def _pseudoloc(self, s):
+    @staticmethod
+    def _pseudoloc(original):
         '''Converts the pseudoloc version of s.'''
-        healthy = 'elsot'
-        yummy = '31507'
-        table = dict([(ord(healthy[i]), yummy[i]) for i in range(
-            len(healthy))])
-        tokens = re.split(r'(%\([a-zA-Z0-9_-]+\))', s)
+        table = str.maketrans('elsot', '31507')
+        tokens = re.split(r'(%\([a-zA-Z0-9_-]+\))', original)
         for i, token in enumerate(tokens):
             if token.startswith('%(') and token.endswith(')'):
                 continue
@@ -513,18 +515,10 @@ class I18nLinter(Linter):
 
         return '(%s)' % ''.join(tokens)
 
-    def run_one(self, filename, contents):
-        return contents, []
-
-    def run_all(self, file_contents, contents_callback):
+    def _get_translated_strings(self, langs, contents_callback):
         strings = {}
-        new_contents = {}
-        original_contents = {}
-        not_sorted = set()
         languages = set()
-        missing_items_lang = set()
-        langs = ['en', 'es', 'pt', 'pseudo']
-
+        not_sorted = set()
         for lang in langs:
             filename = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
             contents = contents_callback(filename).split(b'\n')[:-1]
@@ -580,6 +574,19 @@ class I18nLinter(Linter):
                 values['pseudo'] = 'pseudo'
             else:
                 values['pseudo'] = self._pseudoloc(values['en'])
+
+        return strings
+
+    def run_one(self, filename, contents):
+        return contents, []
+
+    def run_all(self, file_contents, contents_callback):
+        new_contents = {}
+        original_contents = {}
+        missing_items_lang = set()
+        langs = ['en', 'es', 'pt', 'pseudo']
+
+        strings = self._get_translated_strings(langs, contents_callback)
 
         for language in langs:
             template_path = '%s/%s.lang' % (self._TEMPLATES_PATH, language)
