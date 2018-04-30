@@ -534,7 +534,7 @@ class I18nLinter(Linter):
 
         return '(%s)' % ''.join(tokens)
 
-    def _get_translated_strings(self, contents_callback, not_sorted=set()):
+    def _get_translated_strings(self, contents_callback, not_sorted):
         strings = {}
         languages = set()
         for lang in self._LANGS:
@@ -643,7 +643,8 @@ class I18nLinter(Linter):
         return contents, []
 
     def run_all(self, file_contents, contents_callback):
-        strings = self._get_translated_strings(contents_callback)
+        not_sorted = set()
+        strings = self._get_translated_strings(contents_callback, not_sorted)
 
         new_contents, original_contents = self._generate_new_contents(
             strings, contents_callback)
