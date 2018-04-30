@@ -538,11 +538,10 @@ class I18nLinter(Linter):
         strings = {}
         languages = set()
         for lang in self._LANGS:
-            filename = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
-            contents = contents_callback(filename).split(b'\n')[:-1]
+            content = self._get_filename_and_contents(lang, contents_callback)
             languages.add(lang)
             last_key = ''
-            for lineno, line in enumerate(contents):
+            for lineno, line in enumerate(content['contents']):
                 try:
                     row = line.decode('utf-8')
                     key, value = re.compile(r'\s+=\s+').split(row.strip(), 1)
@@ -557,12 +556,13 @@ class I18nLinter(Linter):
                     strings[key][lang] = match.group(1).replace(r'\"', '"')
                 except:  # pylint: disable=bare-except
                     raise LinterException('Invalid i18n line "%s" in %s:%d' %
-                                          (row.strip(), filename, lineno + 1),
-                                          fixable=False)
+                                          (row.strip(), content['filename'],
+                                          lineno + 1), fixable=False)
 
         if not_sorted:
-            print('Entries in %s are not sorted.'
-                  % ', '.join(sorted(not_sorted)), file=sys.stderr)
+            raise LinterException('Entries in %s are not sorted.'
+                                  % ', '.join(sorted(not_sorted)),
+                                  fixable=False)
 
         return self._check_missing_entries(strings, languages)
 
@@ -636,6 +636,12 @@ class I18nLinter(Linter):
 
         return dict(template_path=template_path, js_lang_path=js_lang_path,
                     json_lang_path=json_lang_path)
+
+    def _get_filename_and_contents(self, lang, contents_callback):
+        filename = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
+        contents = contents_callback(filename).split(b'\n')[:-1]
+
+        return dict(filename=filename, contents=contents)
 
     def run_one(self, filename, contents):
         return contents, []
