@@ -564,9 +564,7 @@ class I18nLinter(Linter):
             print('Entries in %s are not sorted.'
                   % ', '.join(sorted(not_sorted)), file=sys.stderr)
 
-        strings = self._check_missing_entries(strings, languages)
-
-        return strings
+        return self._check_missing_entries(strings, languages)
 
     def _check_missing_entries(self, strings, languages):
         missing_items_lang = set()
