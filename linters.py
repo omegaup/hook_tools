@@ -557,7 +557,7 @@ class I18nLinter(Linter):
                 except:  # pylint: disable=bare-except
                     raise LinterException('Invalid i18n line "%s" in %s:%d' %
                                           (row.strip(), content['filename'],
-                                          lineno + 1), fixable=False)
+                                           lineno + 1), fixable=False)
 
         if not_sorted:
             raise LinterException('Entries in %s are not sorted.'

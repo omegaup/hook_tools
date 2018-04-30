@@ -108,7 +108,7 @@ def _run_linter(args, linter, filenames, validate_only):
         args.jobs).starmap(_run_linter_one, [(linter, filename, contents,
                                               validate_only)
                                              for filename,
-                                              contents in files.items()])
+                                             contents in files.items()])
     results.extend(_run_linter_all(args, linter, filenames, validate_only))
     return (set(violation for violation, _ in results
                 if violation is not None),
