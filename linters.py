@@ -156,7 +156,7 @@ class Linter(object):
     @abstractmethod
     def run_all(self, file_contents, contents_callback):
         '''Runs the linter against a subset of files.'''
-        return [], [], []
+        pass
 
     @property
     def name(self):
@@ -484,6 +484,7 @@ class I18nLinter(Linter):
     _FAIL = git_tools.COLORS.FAIL
     _NORMAL = git_tools.COLORS.NORMAL
     _HEADER = git_tools.COLORS.HEADER
+    _LANGS = ['en', 'es', 'pt', 'pseudo']
 
     def __init__(self, options=None):
         super().__init__()
@@ -533,12 +534,11 @@ class I18nLinter(Linter):
 
         return '(%s)' % ''.join(tokens)
 
-    def _get_translated_strings(self, langs, contents_callback):
+    def _get_translated_strings(self, contents_callback):
         strings = {}
         languages = set()
         not_sorted = set()
-        missing_items_lang = set()
-        for lang in langs:
+        for lang in self._LANGS:
             filename = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
             contents = contents_callback(filename).split(b'\n')[:-1]
             languages.add(lang)
@@ -565,6 +565,12 @@ class I18nLinter(Linter):
             print('Entries in %s are not sorted.'
                   % ', '.join(sorted(not_sorted)), file=sys.stderr)
 
+        strings = self._check_missing_entries(strings, languages)
+
+        return strings
+
+    def _check_missing_entries(self, strings, languages):
+        missing_items_lang = set()
         for key, values in strings.items():
             missing_languages = languages.difference(list(values.keys()))
             if 'pseudo' in missing_languages:
@@ -596,10 +602,10 @@ class I18nLinter(Linter):
 
         return strings
 
-    def _generate_new_contents(self, langs, strings, contents_callback):
+    def _generate_new_contents(self, strings, contents_callback):
         new_contents = {}
         original_contents = {}
-        for language in langs:
+        for language in self._LANGS:
             template_path = '%s/%s.lang' % (self._TEMPLATES_PATH, language)
             js_lang_path = '%s/lang.%s.js' % (
                 self._JS_TEMPLATES_PATH, language)
@@ -636,12 +642,10 @@ class I18nLinter(Linter):
         return contents, []
 
     def run_all(self, file_contents, contents_callback):
-        langs = ['en', 'es', 'pt', 'pseudo']
-
-        strings = self._get_translated_strings(langs, contents_callback)
+        strings = self._get_translated_strings(contents_callback)
 
         new_contents, original_contents = self._generate_new_contents(
-            langs, strings, contents_callback)
+            strings, contents_callback)
 
         return new_contents, original_contents, ['i18n']
 
