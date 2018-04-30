@@ -534,10 +534,9 @@ class I18nLinter(Linter):
 
         return '(%s)' % ''.join(tokens)
 
-    def _get_translated_strings(self, contents_callback):
+    def _get_translated_strings(self, contents_callback, not_sorted=set()):
         strings = {}
         languages = set()
-        not_sorted = set()
         for lang in self._LANGS:
             filename = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
             contents = contents_callback(filename).split(b'\n')[:-1]
@@ -606,37 +605,39 @@ class I18nLinter(Linter):
         new_contents = {}
         original_contents = {}
         for language in self._LANGS:
-            template_path = '%s/%s.lang' % (self._TEMPLATES_PATH, language)
-            js_lang_path = '%s/lang.%s.js' % (
-                self._JS_TEMPLATES_PATH, language)
-            json_lang_path = '%s/lang.%s.json' % (
-                self._JS_TEMPLATES_PATH, language)
+            paths = self._get_paths(language)
 
-            js_contents = contents_callback(js_lang_path)
+            js_contents = contents_callback(paths['js_lang_path'])
             js_new_contents = self._generate_javascript(language, strings)
             if js_contents.decode('utf-8') != js_new_contents:
                 print('Entries in %s do not match the .lang file.' %
-                      js_lang_path, file=sys.stderr)
-                new_contents[js_lang_path] = js_new_contents.encode('utf-8')
-                original_contents[js_lang_path] = js_contents
+                      paths['js_lang_path'], file=sys.stderr)
+                new_contents[paths['js_lang_path']] = js_new_contents.encode('utf-8')  # NOQA
+                original_contents[paths['js_lang_path']] = js_contents
 
-            json_contents = contents_callback(json_lang_path)
+            json_contents = contents_callback(paths['json_lang_path'])
             json_new_contents = json.dumps(self._generate_json(
                 language, strings), sort_keys=True, indent='\t')
             if json_contents.decode('utf-8') != json_new_contents:
                 print('Entries in %s do not match the .lang file.' %
-                      json_lang_path, file=sys.stderr)
-                new_contents[json_lang_path] = json_new_contents.encode(
-                    'utf-8')
-                original_contents[json_lang_path] = json_contents
+                      paths['json_lang_path'], file=sys.stderr)
+                new_contents[paths['json_lang_path']] = json_new_contents.encode('utf-8')  # NOQA
+                original_contents[paths['json_lang_path']] = json_contents
 
-            template_content = contents_callback(template_path)
+            template_content = contents_callback(paths['template_path'])
             template_new_contents = self._generate_pseudo(language, strings)
             if language == 'pseudo':
-                new_contents[template_path] = template_new_contents.encode(
-                    'utf-8')
-                original_contents[template_path] = template_content
+                new_contents[paths['template_path']] = template_new_contents.encode('utf-8')  # NOQA
+                original_contents[paths['template_path']] = template_content
         return new_contents, original_contents
+
+    def _get_paths(self, lang):
+        template_path = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
+        js_lang_path = '%s/lang.%s.js' % (self._JS_TEMPLATES_PATH, lang)
+        json_lang_path = '%s/lang.%s.json' % (self._JS_TEMPLATES_PATH, lang)
+
+        return dict(template_path=template_path, js_lang_path=js_lang_path,
+                    json_lang_path=json_lang_path)
 
     def run_one(self, filename, contents):
         return contents, []
