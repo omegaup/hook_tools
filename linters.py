@@ -181,6 +181,9 @@ class JavaScriptLinter(Linter):
             raise LinterException(str(b'\n'.join(cpe.output.split(b'\n')[1:]),
                                       encoding='utf-8'))
 
+    def run_all():
+        pass
+
     @property
     def name(self):
         return 'javascript'
@@ -223,6 +226,9 @@ class WhitespaceLinter(Linter):
                 contents = replaced
 
         return contents, violations
+
+    def run_all():
+        pass
 
     @property
     def name(self):
@@ -343,6 +349,9 @@ class VueLinter(Linter):
 
         return ('\n\n'.join(new_sections)).encode('utf-8') + b'\n', ['vue']
 
+    def run_all():
+        pass
+
     @property
     def name(self):
         return 'vue'
@@ -360,6 +369,9 @@ class HTMLLinter(Linter):
         return (_lint_html(contents,
                            strict=self.__options.get('strict', False)),
                 ['html'])
+
+    def run_all():
+        pass
 
     @property
     def name(self):
@@ -397,6 +409,9 @@ class PHPLinter(Linter):
                 # was an actual error, there won't be anything in stdout.
                 raise LinterException(stderr)
         return new_contents, ['php']
+
+    def run_all():
+        pass
 
     @property
     def name(self):
@@ -447,6 +462,9 @@ class PythonLinter(Linter):
                     fixable=False)
 
             return contents, []
+
+    def run_all():
+        pass
 
     @property
     def name(self):
@@ -519,6 +537,7 @@ class I18nLinter(Linter):
         strings = {}
         languages = set()
         not_sorted = set()
+        missing_items_lang = set()
         for lang in langs:
             filename = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
             contents = contents_callback(filename).split(b'\n')[:-1]
@@ -583,7 +602,6 @@ class I18nLinter(Linter):
     def run_all(self, file_contents, contents_callback):
         new_contents = {}
         original_contents = {}
-        missing_items_lang = set()
         langs = ['en', 'es', 'pt', 'pseudo']
 
         strings = self._get_translated_strings(langs, contents_callback)
@@ -656,6 +674,9 @@ class CustomLinter(Linter):
 
             with open(tmp.name, 'rb') as tmp_in:
                 return tmp_in.read(), ['custom']
+
+    def run_all():
+        pass
 
     @property
     def name(self):

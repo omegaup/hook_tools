@@ -93,9 +93,9 @@ def _run_linter(args, linter, filenames, validate_only):
     logging.debug('%s: Running with %d threads', linter.name, args.jobs)
     files = dict((filename, git_tools.file_contents(args, root, filename))
                  for filename in filenames)
-    results = multiprocessing.Pool(
-      args.jobs).starmap(_run_linter_one, [(args, linter, root, filename,
-       contents, validate_only) for filename, contents in files.items()])
+    results = multiprocessing.Pool(args.jobs).starmap(_run_linter_one,
+      [(args, linter, root, filename, contents, validate_only) for filename,
+        contents in files.items()])
     results.extend(_run_linter_all(args, linter, root, filenames,
                                    validate_only))
     return (set(violation for violation, _ in results
