@@ -56,7 +56,7 @@ def _run_linter_all(args, linter, files, validate_only):
         print('Files %s%s%s lint failed:\n%s' %
               (git_tools.COLORS.FAIL, ', '.join(
                   [filename for filename in files]), git_tools.COLORS.NORMAL,
-                  lex.message), file=sys.stderr)
+               lex.message), file=sys.stderr)
         return [(filename, lex.fixable) for filename in files]
 
     result = []
@@ -69,11 +69,6 @@ def _run_linter_all(args, linter, files, validate_only):
                                                  validate_only, violations,
                                                  True))
     return result
-
-
-def _check_differences(contents, new_contents):
-    if contents == new_contents:
-        return None, False
 
 
 def _report_linter_results(filename, new_contents, validate, violations,
