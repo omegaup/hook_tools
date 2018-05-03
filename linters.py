@@ -510,7 +510,8 @@ class I18nLinter(Linter):
         json_map = {}
         for key in sorted(strings.keys()):
             json_map[key] = strings[key][lang]
-        return json_map
+        json_dump = json.dumps(json_map, sort_keys=True, indent='\t')
+        return json_dump
 
     @staticmethod
     def _generate_pseudo(lang, strings):
@@ -538,10 +539,11 @@ class I18nLinter(Linter):
         strings = {}
         languages = set()
         for lang in self._LANGS:
-            content = self._get_filename_and_contents(lang, contents_callback)
+            filename = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
+            contents = contents_callback(filename).split(b'\n')[:-1]
             languages.add(lang)
             last_key = ''
-            for lineno, line in enumerate(content['contents']):
+            for lineno, line in enumerate(contents):
                 try:
                     row = line.decode('utf-8')
                     key, value = re.compile(r'\s+=\s+').split(row.strip(), 1)
@@ -556,15 +558,26 @@ class I18nLinter(Linter):
                     strings[key][lang] = match.group(1).replace(r'\"', '"')
                 except:  # pylint: disable=bare-except
                     raise LinterException('Invalid i18n line "%s" in %s:%d' %
-                                          (row.strip(), content['filename'],
-                                           lineno + 1), fixable=False)
+                                          (row.strip(), filename, lineno + 1),
+                                          fixable=False)
 
         if not_sorted:
             raise LinterException('Entries in %s are not sorted.'
                                   % ', '.join(sorted(not_sorted)),
                                   fixable=False)
 
-        return self._check_missing_entries(strings, languages)
+        self._check_missing_entries(strings, languages)
+        return strings
+
+    def _generate_content_entry(self, new_contents, original_contents, path,
+                                new_content, contents_callback,
+                                compare_original=True):
+        original_content = contents_callback(path)
+        if original_content.decode('utf-8') != new_content:
+            print('Entries in %s do not match the .lang file.' % path,
+                   file=sys.stderr)
+            new_contents[path] = new_content.encode('utf-8')
+            original_contents[path] = original_content
 
     def _check_missing_entries(self, strings, languages):
         missing_items_lang = set()
@@ -597,51 +610,25 @@ class I18nLinter(Linter):
             else:
                 values['pseudo'] = self._pseudoloc(values['en'])
 
-        return strings
-
     def _generate_new_contents(self, strings, contents_callback):
         new_contents = {}
         original_contents = {}
         for language in self._LANGS:
-            paths = self._get_paths(language)
+            self._generate_content_entry(new_contents, original_contents,
+                '%s/lang.%s.js' % (self._JS_TEMPLATES_PATH, language),
+                self._generate_javascript(language, strings),
+                contents_callback)
 
-            js_contents = contents_callback(paths['js_lang_path'])
-            js_new_contents = self._generate_javascript(language, strings)
-            if js_contents.decode('utf-8') != js_new_contents:
-                print('Entries in %s do not match the .lang file.' %
-                      paths['js_lang_path'], file=sys.stderr)
-                new_contents[paths['js_lang_path']] = js_new_contents.encode('utf-8')  # NOQA
-                original_contents[paths['js_lang_path']] = js_contents
+            self._generate_content_entry(new_contents, original_contents,
+                '%s/lang.%s.json' % (self._JS_TEMPLATES_PATH, language),
+                self._generate_json(language, strings),
+                contents_callback)
 
-            json_contents = contents_callback(paths['json_lang_path'])
-            json_new_contents = json.dumps(self._generate_json(
-                language, strings), sort_keys=True, indent='\t')
-            if json_contents.decode('utf-8') != json_new_contents:
-                print('Entries in %s do not match the .lang file.' %
-                      paths['json_lang_path'], file=sys.stderr)
-                new_contents[paths['json_lang_path']] = json_new_contents.encode('utf-8')  # NOQA
-                original_contents[paths['json_lang_path']] = json_contents
+        self._generate_content_entry(original_contents, new_contents,
+            '%s/pseudo.lang' % (self._TEMPLATES_PATH),
+            self._generate_pseudo('pseudo', strings), contents_callback, False)
 
-            template_content = contents_callback(paths['template_path'])
-            template_new_contents = self._generate_pseudo(language, strings)
-            if language == 'pseudo':
-                new_contents[paths['template_path']] = template_new_contents.encode('utf-8')  # NOQA
-                original_contents[paths['template_path']] = template_content
         return new_contents, original_contents
-
-    def _get_paths(self, lang):
-        template_path = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
-        js_lang_path = '%s/lang.%s.js' % (self._JS_TEMPLATES_PATH, lang)
-        json_lang_path = '%s/lang.%s.json' % (self._JS_TEMPLATES_PATH, lang)
-
-        return dict(template_path=template_path, js_lang_path=js_lang_path,
-                    json_lang_path=json_lang_path)
-
-    def _get_filename_and_contents(self, lang, contents_callback):
-        filename = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
-        contents = contents_callback(filename).split(b'\n')[:-1]
-
-        return dict(filename=filename, contents=contents)
 
     def run_one(self, filename, contents):
         return contents, []
