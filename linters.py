@@ -540,10 +540,10 @@ class I18nLinter(Linter):
         languages = set()
         for lang in self._LANGS:
             filename = '%s/%s.lang' % (self._TEMPLATES_PATH, lang)
-            contents = contents_callback(filename).split(b'\n')[:-1]
             languages.add(lang)
             last_key = ''
-            for lineno, line in enumerate(contents):
+            for lineno, line in enumerate(contents_callback(
+                    filename).split(b'\n')[:-1]):
                 try:
                     row = line.decode('utf-8')
                     key, value = re.compile(r'\s+=\s+').split(row.strip(), 1)
