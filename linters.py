@@ -569,9 +569,9 @@ class I18nLinter(Linter):
         self._check_missing_entries(strings, languages)
         return strings
 
-    def _generate_content_entry(self, new_contents, original_contents, path,
-                                new_content, contents_callback,
-                                compare_original=True):
+    @staticmethod
+    def _generate_content_entry(new_contents, original_contents, path,
+                                new_content, contents_callback):
         original_content = contents_callback(path)
         if original_content.decode('utf-8') != new_content:
             print('Entries in %s do not match the .lang file.' % path,
@@ -615,23 +615,27 @@ class I18nLinter(Linter):
         original_contents = {}
         for language in self._LANGS:
             self._generate_content_entry(new_contents, original_contents,
-                                         '%s/lang.%s.js' % (
-                                         self._JS_TEMPLATES_PATH, language),
-                                         self._generate_javascript(language,
-                                                                   strings),
-                                         contents_callback)
+                                         path='%s/lang.%s.js' % (
+                                             self._JS_TEMPLATES_PATH,
+                                             language),
+                                         new_content=self._generate_javascript(
+                                             language, strings),
+                                         contents_callback=contents_callback)
 
             self._generate_content_entry(new_contents, original_contents,
-                                         '%s/lang.%s.json' % (
-                                         self._JS_TEMPLATES_PATH, language),
-                                         self._generate_json(language,
-                                                             strings),
-                                         contents_callback)
+                                         path='%s/lang.%s.json' % (
+                                             self._JS_TEMPLATES_PATH,
+                                             language),
+                                         new_content=self._generate_json(
+                                             language, strings),
+                                         contents_callback=contents_callback)
 
         self._generate_content_entry(original_contents, new_contents,
-                                     '%s/pseudo.lang' % (self._TEMPLATES_PATH),
-                                     self._generate_pseudo('pseudo', strings),
-                                     contents_callback, False)
+                                     path='%s/pseudo.lang' % (
+                                         self._TEMPLATES_PATH),
+                                     new_content=self._generate_pseudo(
+                                         'pseudo', strings),
+                                     contents_callback=contents_callback)
 
         return new_contents, original_contents
 
