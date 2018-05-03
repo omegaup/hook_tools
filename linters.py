@@ -575,7 +575,7 @@ class I18nLinter(Linter):
         original_content = contents_callback(path)
         if original_content.decode('utf-8') != new_content:
             print('Entries in %s do not match the .lang file.' % path,
-                   file=sys.stderr)
+                  file=sys.stderr)
             new_contents[path] = new_content.encode('utf-8')
             original_contents[path] = original_content
 
@@ -615,18 +615,23 @@ class I18nLinter(Linter):
         original_contents = {}
         for language in self._LANGS:
             self._generate_content_entry(new_contents, original_contents,
-                '%s/lang.%s.js' % (self._JS_TEMPLATES_PATH, language),
-                self._generate_javascript(language, strings),
-                contents_callback)
+                                         '%s/lang.%s.js' % (
+                                         self._JS_TEMPLATES_PATH, language),
+                                         self._generate_javascript(language,
+                                                                   strings),
+                                         contents_callback)
 
             self._generate_content_entry(new_contents, original_contents,
-                '%s/lang.%s.json' % (self._JS_TEMPLATES_PATH, language),
-                self._generate_json(language, strings),
-                contents_callback)
+                                         '%s/lang.%s.json' % (
+                                         self._JS_TEMPLATES_PATH, language),
+                                         self._generate_json(language,
+                                                             strings),
+                                         contents_callback)
 
         self._generate_content_entry(original_contents, new_contents,
-            '%s/pseudo.lang' % (self._TEMPLATES_PATH),
-            self._generate_pseudo('pseudo', strings), contents_callback, False)
+                                     '%s/pseudo.lang' % (self._TEMPLATES_PATH),
+                                     self._generate_pseudo('pseudo', strings),
+                                     contents_callback, False)
 
         return new_contents, original_contents
 
