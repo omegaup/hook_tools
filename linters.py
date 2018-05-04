@@ -510,8 +510,7 @@ class I18nLinter(Linter):
         json_map = {}
         for key in sorted(strings.keys()):
             json_map[key] = strings[key][lang]
-        json_dump = json.dumps(json_map, sort_keys=True, indent='\t')
-        return json_dump
+        return json.dumps(json_map, sort_keys=True, indent='\t')
 
     @staticmethod
     def _generate_pseudo(lang, strings):
@@ -569,16 +568,6 @@ class I18nLinter(Linter):
         self._check_missing_entries(strings, languages)
         return strings
 
-    @staticmethod
-    def _generate_content_entry(new_contents, original_contents, path,
-                                new_content, contents_callback):
-        original_content = contents_callback(path)
-        if original_content.decode('utf-8') != new_content:
-            print('Entries in %s do not match the .lang file.' % path,
-                  file=sys.stderr)
-            new_contents[path] = new_content.encode('utf-8')
-            original_contents[path] = original_content
-
     def _check_missing_entries(self, strings, languages):
         missing_items_lang = set()
         for key, values in strings.items():
@@ -609,6 +598,16 @@ class I18nLinter(Linter):
                 values['pseudo'] = 'pseudo'
             else:
                 values['pseudo'] = self._pseudoloc(values['en'])
+
+    @staticmethod
+    def _generate_content_entry(new_contents, original_contents, path,
+                                new_content, contents_callback):
+        original_content = contents_callback(path)
+        if original_content.decode('utf-8') != new_content:
+            print('Entries in %s do not match the .lang file.' % path,
+                  file=sys.stderr)
+            new_contents[path] = new_content.encode('utf-8')
+            original_contents[path] = original_content
 
     def _generate_new_contents(self, strings, contents_callback):
         new_contents = {}
