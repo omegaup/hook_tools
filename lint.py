@@ -23,12 +23,14 @@ _LINTER_MAPPING = {
     'vue': linters.VueLinter,
     'php': linters.PHPLinter,
     'python': linters.PythonLinter,
+    'i18n': linters.I18nLinter,
 }
 
+_ROOT = git_tools.root_dir()
 
-def _run_linter_one(args, linter, root, filename, validate_only):
+
+def _run_linter_one(linter, filename, contents, validate_only):
     '''Runs the linter against one file.'''
-    contents = git_tools.file_contents(args, root, filename)
     try:
         new_contents, violations = linter.run_one(filename, contents)
     except linters.LinterException as lex:
@@ -37,36 +39,72 @@ def _run_linter_one(args, linter, root, filename, validate_only):
                git_tools.COLORS.NORMAL, lex.message),
               file=sys.stderr)
         return filename, lex.fixable
-    if contents != new_contents:
-        violations_message = ', '.join(
-            '%s%s%s' %
-            (git_tools.COLORS.FAIL, violation, git_tools.COLORS.NORMAL)
-            for violation in violations)
-        if validate_only:
-            print('File %s%s%s lint failed: %s' %
-                  (git_tools.COLORS.HEADER, filename,
-                   git_tools.COLORS.NORMAL, violations_message),
-                  file=sys.stderr)
+
+    if contents == new_contents:
+        return None, False
+
+    return _report_linter_results(filename, new_contents, validate_only,
+                                  violations, True)
+
+
+def _run_linter_all(args, linter, files, validate_only):
+    try:
+        new_file_contents, original_contents, violations = linter.run_all(
+            files, lambda filename: git_tools.file_contents(args, _ROOT,
+                                                            filename))
+    except linters.LinterException as lex:
+        print('Files %s%s%s lint failed:\n%s' %
+              (git_tools.COLORS.FAIL, ', '.join(
+                  [filename for filename in files]), git_tools.COLORS.NORMAL,
+               lex.message), file=sys.stderr)
+        return [(filename, lex.fixable) for filename in files]
+
+    result = []
+    for filename in new_file_contents:
+        if original_contents[filename] == new_file_contents[filename]:
+            result.append([None, False])
         else:
-            print('Fixing %s%s%s' %
-                  (git_tools.COLORS.HEADER, filename,
-                   git_tools.COLORS.NORMAL),
-                  file=sys.stderr)
-            with open(os.path.join(root, filename), 'wb') as outfile:
-                outfile.write(new_contents)
-        return filename, True
-    return None, False
+            result.append(_report_linter_results(filename,
+                                                 new_file_contents[filename],
+                                                 validate_only, violations,
+                                                 True))
+    return result
 
 
-def _run_linter(args, linter, files, validate_only):
+def _report_linter_results(filename, new_contents, validate, violations,
+                           fixable):
+    violations_message = ', '.join(
+        '%s%s%s' %
+        (git_tools.COLORS.FAIL, violation, git_tools.COLORS.NORMAL)
+        for violation in violations)
+    if validate:
+        print('File %s%s%s lint failed: %s' %
+              (git_tools.COLORS.HEADER, filename,
+               git_tools.COLORS.NORMAL, violations_message),
+              file=sys.stderr)
+    else:
+        print('Fixing %s%s%s' %
+              (git_tools.COLORS.HEADER, filename,
+               git_tools.COLORS.NORMAL),
+              file=sys.stderr)
+        with open(os.path.join(_ROOT, filename), 'wb') as outfile:
+            outfile.write(new_contents)
+    return filename, fixable
+
+
+def _run_linter(args, linter, filenames, validate_only):
     '''Runs the linter against all files.'''
-    root = git_tools.root_dir()
-    logging.debug('%s: Files to consider: %s', linter.name, ' '.join(files))
+    logging.debug('%s: Files to consider: %s',
+                  linter.name, ' '.join(filenames))
     logging.debug('%s: Running with %d threads', linter.name, args.jobs)
-    results = multiprocessing.Pool(args.jobs).starmap(
-        _run_linter_one,
-        [(args, linter, root, filename, validate_only)
-         for filename in files])
+    files = dict((filename, git_tools.file_contents(args, _ROOT, filename))
+                 for filename in filenames)
+    results = multiprocessing.Pool(
+        args.jobs).starmap(_run_linter_one, [(linter, filename, contents,
+                                              validate_only)
+                                             for filename,
+                                             contents in files.items()])
+    results.extend(_run_linter_all(args, linter, filenames, validate_only))
     return (set(violation for violation, _ in results
                 if violation is not None),
             any(fixable for _, fixable in results))
@@ -113,7 +151,6 @@ def main():
         filtered_files = [
             filename for filename in filtered_files
             if all(not r.match(filename) for r in blacklist)]
-
         local_violations, local_fixable = _run_linter(
             args, _LINTER_MAPPING[linter](options), filtered_files,
             validate_only)
