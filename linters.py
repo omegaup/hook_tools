@@ -629,7 +629,7 @@ class I18nLinter(Linter):
                                              language, strings),
                                          contents_callback=contents_callback)
 
-        self._generate_content_entry(original_contents, new_contents,
+        self._generate_content_entry(new_contents, original_contents,
                                      path='%s/pseudo.lang' % (
                                          self._TEMPLATES_PATH),
                                      new_content=self._generate_pseudo(
