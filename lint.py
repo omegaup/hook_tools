@@ -113,7 +113,12 @@ def _run_linter(args, linter, filenames, validate_only):
 def main():
     '''Runs the linters against the chosen files.'''
 
-    args = git_tools.parse_arguments(tool_description='lints a project')
+    args = git_tools.parse_arguments(
+        tool_description='lints a project',
+        extra_arguments=[
+            git_tools.Argument(
+                '--linters', help='Comma-separated subset of linters to run'),
+        ])
     if not args.files:
         return
 
@@ -130,6 +135,17 @@ def main():
 
     file_violations = set()
     fixable = False
+    linter_whitelist = set(_LINTER_MAPPING.keys())
+    if args.linters:
+        args_linters = set(args.linters.split(','))
+        unknown_linters = args_linters - linter_whitelist
+        if unknown_linters:
+            print('Unknown linters %s%s%s.' %
+                  (git_tools.COLORS.FAIL, ', '.join(unknown_linters),
+                   git_tools.COLORS.NORMAL),
+                  file=sys.stderr)
+            sys.exit(1)
+        linter_whitelist = args_linters
 
     for linter, options in config['lint'].items():
         if linter not in _LINTER_MAPPING:
@@ -137,6 +153,8 @@ def main():
                   (git_tools.COLORS.FAIL, linter, git_tools.COLORS.NORMAL),
                   file=sys.stderr)
             sys.exit(1)
+        if linter not in linter_whitelist:
+            continue
 
         filtered_files = args.files
 
