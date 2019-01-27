@@ -1,6 +1,7 @@
 {
 	"lint": {
 		"python": {
+			"pep8_config": "setup.cfg",
 			"whitelist": [
 				".*\\.py$"
 			]

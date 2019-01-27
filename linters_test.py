@@ -5,10 +5,15 @@
 
 from __future__ import print_function
 
-import unittest
 import os
+import sys
+import unittest
 
-import linters
+if __name__ == "__main__" and __package__ is None:
+    sys.path.append(os.path.dirname(sys.path[0]))
+    __package__ = "hook_tools"  # pylint: disable=redefined-builtin
+
+from hook_tools import linters  # pylint: disable=E0402,C0413
 
 
 class TestLinters(unittest.TestCase):
@@ -50,17 +55,17 @@ class TestLinters(unittest.TestCase):
             'empty lines before a closing brace',
         ])
 
-    def test_custom(self):
-        """Tests CustomLinter."""
+    def test_command(self):
+        """Tests CommandLinter."""
 
-        linter = linters.CustomLinter({
+        linter = linters.CommandLinter({
             'commands': ['python3 test/uppercase_linter.py'],
         })
 
         new_contents, violations = linter.run_one('test.txt',
                                                   b'Hello, World!\n')
         self.assertEqual(new_contents, b'HELLO, WORLD!\n')
-        self.assertEqual(violations, ['custom'])
+        self.assertEqual(violations, ['command'])
 
     @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
     def test_javascript(self):

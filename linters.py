@@ -4,6 +4,7 @@ from __future__ import print_function
 
 from abc import ABCMeta, abstractmethod
 from html.parser import HTMLParser
+import importlib.util
 import logging
 import collections
 import os
@@ -14,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 
-import git_tools
+from . import git_tools  # pylint: disable=relative-beyond-top-level
 
 
 def _find_pip_tool(name):
@@ -68,9 +69,9 @@ def _custom_command(command, filename, original_filename):
     '''A custom command.'''
 
     try:
-        from shlex import quote as quote
+        from shlex import quote
     except ImportError:
-        from pipes import quote as quote
+        from pipes import quote
 
     return ['/bin/bash', '-c', '%s %s %s' %
             (command, quote(filename), quote(original_filename))]
@@ -132,14 +133,14 @@ def _lint_html(contents, strict):
 
         if retcode == 0:
             return new_contents
-        elif retcode == 1 and not strict:
+        if retcode == 1 and not strict:
             # |retcode| == 1 means that there were warnings.
             return new_contents
 
         raise LinterException(stderr)
 
 
-class Linter(object):
+class Linter:
     '''An abstract Linter.'''
     # pylint: disable=R0903
 
@@ -151,12 +152,10 @@ class Linter(object):
     @abstractmethod
     def run_one(self, filename, contents):
         '''Runs the linter against |contents|.'''
-        pass
 
     @abstractmethod
     def run_all(self, file_contents, contents_callback):
         '''Runs the linter against a subset of files.'''
-        pass
 
     @property
     def name(self):
@@ -656,6 +655,61 @@ class I18nLinter(Linter):
 
 
 class CustomLinter(Linter):
+    '''A lazily, dynamically-loaded linter.'''
+
+    def __init__(self, custom_linter, config_file_path):
+        super().__init__()
+        self.__module_path = os.path.join(
+            os.path.dirname(config_file_path), custom_linter['path'])
+        self.__config = custom_linter
+        self.__instance = None
+        self.__options = {}
+
+    def _ensure_loaded(self):
+        if self.__instance:
+            return
+        custom_linter_module_spec = importlib.util.spec_from_file_location(
+            self.__module_path.rstrip('.py').replace('/', '_'),
+            self.__module_path)
+        custom_linter_module = importlib.util.module_from_spec(
+            custom_linter_module_spec)
+        custom_linter_module_spec.loader.exec_module(custom_linter_module)
+        self.__instance = getattr(custom_linter_module,
+                                  self.__config['class_name'])(self.__options)
+
+    def __call__(self, options=None):
+        # Instead of the constructor being stored in the map of available
+        # linters, a live instance of this class is stored. Later, this
+        # function is called in lieu of the constructor.
+        if options:
+            self.__options = options
+        return self
+
+    def __getstate__(self):
+        # This is needed to prevent self.__instance from being pickled, which
+        # is something that is not supported.
+        return {
+            '_CustomLinter__config': self.__config,
+            '_CustomLinter__module_path': self.__module_path,
+            '_CustomLinter__options': self.__options,
+            '_CustomLinter__instance': None,
+        }
+
+    def run_one(self, filename, contents):
+        self._ensure_loaded()
+        return self.__instance.run_one(filename, contents)
+
+    def run_all(self, file_contents, contents_callback):
+        self._ensure_loaded()
+        return self.__instance.run_all(file_contents, contents_callback)
+
+    @property
+    def name(self):
+        self._ensure_loaded()
+        return self.__instance.name
+
+
+class CommandLinter(Linter):
     '''Runs a custom command as linter.'''
     # pylint: disable=R0903
 
@@ -676,21 +730,21 @@ class CustomLinter(Linter):
 
             for args in commands:
                 try:
-                    logging.debug('lint_custom: Running %s', args)
+                    logging.debug('lint_command: Running %s', args)
                     subprocess.check_output(args, stderr=subprocess.STDOUT)
                 except subprocess.CalledProcessError as cpe:
                     raise LinterException(str(cpe.output, encoding='utf-8'),
                                           fixable=False)
 
             with open(tmp.name, 'rb') as tmp_in:
-                return tmp_in.read(), ['custom']
+                return tmp_in.read(), ['command']
 
     def run_all(self, file_contents, contents_callback):
         return [], [], []
 
     @property
     def name(self):
-        return 'custom (%s)' % (self.__options.get('commands', []),)
+        return 'command (%s)' % (self.__options.get('commands', []),)
 
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

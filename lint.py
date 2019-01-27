@@ -12,8 +12,12 @@ import os.path
 import re
 import sys
 
-import linters
-import git_tools
+if __name__ == "__main__" and __package__ is None:
+    sys.path.append(os.path.dirname(sys.path[0]))
+    __package__ = "hook_tools"  # pylint: disable=redefined-builtin
+
+from hook_tools import linters  # pylint: disable=E0402,C0413
+from hook_tools import git_tools  # pylint: disable=E0402,C0413
 
 
 _LINTER_MAPPING = {
@@ -110,6 +114,42 @@ def _run_linter(args, linter, filenames, validate_only):
             any(fixable for _, fixable in results))
 
 
+def _get_enabled_linters(config, config_file_path, linter_whitelist):
+    '''Loads any custom linters.'''
+    available_linters = dict(_LINTER_MAPPING)
+
+    for custom_linter in config.get('custom_linters', []):
+        available_linters[custom_linter['name']] = linters.CustomLinter(
+            custom_linter, config_file_path)
+
+    final_linter_whitelist = set(available_linters.keys())
+
+    if linter_whitelist:
+        args_linters = set(linter_whitelist.split(','))
+        unknown_linters = args_linters - final_linter_whitelist
+        if unknown_linters:
+            print('Unknown linters %s%s%s.' %
+                  (git_tools.COLORS.FAIL, ', '.join(unknown_linters),
+                   git_tools.COLORS.NORMAL),
+                  file=sys.stderr)
+            sys.exit(1)
+        final_linter_whitelist = args_linters
+
+    unknown_linters = set(config['lint']) - set(available_linters)
+    if unknown_linters:
+        print(
+            'Unknown linters %s%s%s.' %
+            (git_tools.COLORS.FAIL, ', '.join(unknown_linters),
+             git_tools.COLORS.NORMAL),
+            file=sys.stderr)
+        sys.exit(1)
+
+    for linter_name, options in config['lint'].items():
+        if linter_name not in final_linter_whitelist:
+            continue
+        yield available_linters[linter_name], options
+
+
 def main():
     '''Runs the linters against the chosen files.'''
 
@@ -135,27 +175,9 @@ def main():
 
     file_violations = set()
     fixable = False
-    linter_whitelist = set(_LINTER_MAPPING.keys())
-    if args.linters:
-        args_linters = set(args.linters.split(','))
-        unknown_linters = args_linters - linter_whitelist
-        if unknown_linters:
-            print('Unknown linters %s%s%s.' %
-                  (git_tools.COLORS.FAIL, ', '.join(unknown_linters),
-                   git_tools.COLORS.NORMAL),
-                  file=sys.stderr)
-            sys.exit(1)
-        linter_whitelist = args_linters
 
-    for linter, options in config['lint'].items():
-        if linter not in _LINTER_MAPPING:
-            print('Unknown linter %s%s%s.' %
-                  (git_tools.COLORS.FAIL, linter, git_tools.COLORS.NORMAL),
-                  file=sys.stderr)
-            sys.exit(1)
-        if linter not in linter_whitelist:
-            continue
-
+    for linter, options in _get_enabled_linters(config, args.config_file,
+                                                args.linters):
         filtered_files = args.files
 
         # Filter only the files in the whitelist.
@@ -170,7 +192,7 @@ def main():
             filename for filename in filtered_files
             if all(not r.match(filename) for r in blacklist)]
         local_violations, local_fixable = _run_linter(
-            args, _LINTER_MAPPING[linter](options), filtered_files,
+            args, linter(options), filtered_files,
             validate_only)
         file_violations |= local_violations
         fixable |= local_fixable
