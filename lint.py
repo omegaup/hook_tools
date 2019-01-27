@@ -27,7 +27,6 @@ _LINTER_MAPPING = {
     'vue': linters.VueLinter,
     'php': linters.PHPLinter,
     'python': linters.PythonLinter,
-    'i18n': linters.I18nLinter,
 }
 
 _ROOT = git_tools.root_dir()
