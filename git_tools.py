@@ -47,7 +47,7 @@ class Argument:
         parser.add_argument(*self.args, **self.kwargs)
 
 
-def _get_explicit_file_list(args):
+def get_explicit_file_list(commits):
     '''Returns the explicit file list from the commandline.
 
     Developers might want to use an explicit file list in case there is a file
@@ -55,13 +55,33 @@ def _get_explicit_file_list(args):
     that come before -- are references, and the ones that come after are files.
     We use the same convention.
     '''
+    # If a -- was explicitly passed, honor it and don't try to guess what is
+    # what.
     try:
-        idx = args.index('--')
-        files = args[idx + 1:]
-        args[idx:] = []
+        idx = commits.index('--')
+        files = commits[idx + 1:]
+        commits[idx:] = []
         return files
     except ValueError:
-        return []
+        pass
+
+    # Otherwise let git-rev-parse let us know what are revisions and we treat
+    # everything following the first non-revision as a file.
+    try:
+        commit_refs_output = subprocess.check_output(
+            ['/usr/bin/git', 'rev-parse', '--revs-only'] + commits,
+            universal_newlines=True,
+            cwd=root_dir()).strip()
+        if not commit_refs_output:
+            commit_refs = []
+        else:
+            commit_refs = commit_refs_output.split('\n')
+    except subprocess.CalledProcessError:
+        commit_refs = []
+
+    files = commits[len(commit_refs):]
+    del commits[len(commit_refs):]
+    return files
 
 
 def _validate_args(args, files):
@@ -71,12 +91,12 @@ def _validate_args(args, files):
     against the working tree) or two commits.
     '''
     if args.all_files:
-        if args.commits != ['HEAD'] or files:
+        if args.commits or files:
             print(
                 '%s--all-files is incompatible with `commits` or `files`.%s' %
                 (COLORS.FAIL, COLORS.NORMAL), file=sys.stderr)
             return False
-    if len(args.commits) not in (1, 2):
+    if len(args.commits) not in (0, 1, 2):
         # args.commits can never be empty since its default value is ['HEAD'],
         # but the user can specify zero commits.
         print('%sCan only specify zero, one or two commits.%s' %
@@ -87,21 +107,20 @@ def _validate_args(args, files):
 
 
 def _get_all_files():
-    '''Returns the list of all files at HEAD.'''
+    '''Returns the list of all files at HEAD (and maybe in the index).'''
 
-    for line in subprocess.check_output(['/usr/bin/git', 'ls-tree', '-r',
-                                         '-z', 'HEAD'],
+    for path in subprocess.check_output(['/usr/bin/git', 'ls-files', '-z'],
                                         cwd=root_dir()).split(b'\x00'):
-        match = GIT_LS_TREE_PATTERN.match(line)
-        if not match:
-            continue
-        yield match.groups()[0]
+        if os.path.isfile(path):
+            yield path
 
 
 def _get_changed_files(commits):
     ''' Returns the list of files that were modified in the specified range.'''
 
-    if len(commits) == 1:
+    if not commits:
+        cmd = ['/usr/bin/git', 'diff-index', '-z', '--diff-filter=d', 'HEAD']
+    elif len(commits) == 1:
         cmd = ['/usr/bin/git', 'diff-index', '-z', '--diff-filter=d'] + commits
     else:
         if commits[-1] == GIT_NULL_HASH:
@@ -180,7 +199,7 @@ def prompt(question, default=True):
 
 def file_contents(args, root, filename):
     '''Returns contents of |filename| at the revision specified by |args|.'''
-    if len(args.commits) == 1:
+    if len(args.commits) in (0, 1):
         # Zero or one commits (where the former is a shorthand for 'HEAD')
         # always diff against the current contents of the file in the
         # filesystem.
@@ -226,12 +245,13 @@ def parse_arguments(tool_description=None, extra_arguments=()):
         '--all-files', action='store_true',
         help='Considers all files. Incompatible with `commits` and `files`')
     validate_parser.add_argument(
-        'commits', metavar='commit', nargs='*', default=['HEAD'], type=str,
-        help='Only include files changed between commits')
-    validate_parser.add_argument('ignored', metavar='--', nargs='?')
-    validate_parser.add_argument(
-        'ignored', metavar='file', nargs='*',
-        help='If specified, only consider these files')
+        'commits',
+        metavar='[commit [commit ...]] [--] [file [file ...]]',
+        nargs=argparse.REMAINDER,
+        default=[],
+        type=str,
+        help=('commit: Only include files changed between commits\n'
+              'file:   If specified, only consider these files'))
 
     fix_parser = subparsers.add_parser(
         'fix',
@@ -242,15 +262,16 @@ def parse_arguments(tool_description=None, extra_arguments=()):
         help=('Considers all files. '
               'Incompatible with `commits` and `files`'))
     fix_parser.add_argument(
-        'commits', metavar='commit', nargs='*', default=['HEAD'], type=str,
-        help='Only include files changed between commits')
-    fix_parser.add_argument('ignored', metavar='--', nargs='?')
-    fix_parser.add_argument(
-        'ignored', metavar='file', nargs='*',
-        help='If specified, only consider these files')
+        'commits',
+        metavar='[commit [commit ...]] [--] [file [file ...]]',
+        nargs=argparse.REMAINDER,
+        default=[],
+        type=str,
+        help=('commit: Only include files changed between commits\n'
+              'file:   If specified, only consider these files'))
 
-    files = _get_explicit_file_list(sys.argv)
     args = parser.parse_args()
+    files = get_explicit_file_list(args.commits)
     if not _validate_args(args, files):
         sys.exit(1)
     if files:
