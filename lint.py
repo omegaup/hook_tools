@@ -163,8 +163,8 @@ def main():
 
     # If running in an automated environment, we can close stdin.
     # This will disable all prompts.
-    if (args.continuous_integration or
-            os.environ.get('CONTINUOUS_INTEGRATION') == 'true'):
+    if (args.continuous_integration
+            or os.environ.get('CONTINUOUS_INTEGRATION') == 'true'):
         sys.stdin.close()
 
     validate_only = args.tool == 'validate'

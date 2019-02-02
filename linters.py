@@ -273,8 +273,8 @@ class VueHTMLParser(HTMLParser):
         for name, _ in attrs:
             if name == 'id':
                 raise LinterException(
-                    'Use of "id" attribute in .vue files is ' +
-                    'discouraged. Found one in line %d\n' % (line),
+                    ('Use of "id" attribute in .vue files is '
+                     'discouraged. Found one in line %d\n') % (line),
                     fixable=False)
 
     def handle_endtag(self, tag):
@@ -321,9 +321,9 @@ class VueLinter(Linter):
                 elif tag == 'template':
                     wrapped_contents = (
                         b'<!DOCTYPE html>\n<html>\n<head>\n'
-                        b'<title></title>\n</head><body>\n' +
-                        section_contents.encode('utf-8') +
-                        b'\n</body>\n</html>')
+                        + b'<title></title>\n</head><body>\n'
+                        + section_contents.encode('utf-8')
+                        + b'\n</body>\n</html>')
                     lines = _lint_html(
                         wrapped_contents,
                         strict=self.__options.get('strict',
@@ -416,7 +416,7 @@ class PHPLinter(Linter):
 
 
 class PythonLinter(Linter):
-    '''Runs pep8 and pylint.'''
+    '''Runs pycodestyle and pylint.'''
     # pylint: disable=R0903
 
     def __init__(self, options=None):
@@ -431,9 +431,12 @@ class PythonLinter(Linter):
 
             python3 = _which('python3')
 
-            args = [python3, '-m', 'pep8', tmp_path]
-            if 'pep8_config' in self.__options:
-                args.append('--config=%s' % self.__options['pep8_config'])
+            args = [python3, '-m', 'pycodestyle', tmp_path]
+            for configname in ('pycodestyle_config', 'pep8_config'):
+                if configname not in self.__options:
+                    continue
+                args.append('--config=%s' % self.__options[configname])
+                break
             try:
                 logging.debug('lint_python: Running %s', args)
                 subprocess.check_output(args, stderr=subprocess.STDOUT)
