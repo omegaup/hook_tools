@@ -287,9 +287,9 @@ def parse_arguments(tool_description=None, extra_arguments=()):
     return args
 
 
-def _get_fix_args(progname, args, files=None):
+def _get_fix_args(prog_args, args, files=None):
     '''Gets the command arguments to run to fix violations.'''
-    params = [progname, 'fix']
+    params = prog_args + ['fix']
     params.extend(args.commits)
     if not files and args.files:
         files = args.files
@@ -299,10 +299,10 @@ def _get_fix_args(progname, args, files=None):
     return params
 
 
-def get_fix_commandline(progname, args, files=None):
+def get_fix_commandline(prog_args, args, files=None):
     '''Gets the commandline the developer must run to fix violations.'''
-    return ' '.join(pipes.quote(p)
-                    for p in _get_fix_args(progname, args, files))
+    return ' '.join(prog_args +
+                    [pipes.quote(p) for p in _get_fix_args([], args, files)])
 
 
 def verify_toolchain(binaries):
@@ -334,9 +334,10 @@ def attempt_automatic_fixes(scriptname, args, files=None):
     if not prompt('Want to automatically fix errors?'):
         # User decided not to go with the fixes.
         return False
-    # This should always "fail" because it's designed to block `git push`.
-    # We cannot use check_call() for that reason.
-    subprocess.call(_get_fix_args(scriptname, args, files))
+    # This should always "fail" because it's designed to block `git push`.  We
+    # cannot use check_call() for that reason. We also always use the
+    # in-container version of the invocation.
+    subprocess.call(_get_fix_args([scriptname], args, files))
     if not subprocess.check_output(['/usr/bin/git',
                                     'status', '--porcelain']).strip():
         # The fix failed?

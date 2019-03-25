@@ -16,7 +16,9 @@ RUN npm install -g yarn
 RUN mkdir -p /src
 WORKDIR /src
 
+ENV DOCKER=true
+
 RUN mkdir -p /hook_tools
-RUN git clone https://github.com/omegaup/hook_tools.git /hook_tools
+ADD ./ /hook_tools
 
 ENTRYPOINT ["/usr/bin/python3", "/hook_tools/lint.py"]

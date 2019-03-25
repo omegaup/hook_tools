@@ -9,6 +9,7 @@ import json
 import logging
 import multiprocessing
 import os.path
+import pipes
 import re
 import sys
 
@@ -30,6 +31,16 @@ _LINTER_MAPPING = {
 }
 
 _ROOT = git_tools.root_dir()
+
+
+def _get_command_name():
+    '''Returns the name of the command needed to invoke this script.'''
+    if os.environ.get('DOCKER') == 'true':
+        return [
+            '/usr/bin/docker', 'run', '--rm', '-v', '"$PWD:/src"', '-v',
+            '"$PWD:$PWD"', 'omegaup/hook_tools'
+        ]
+    return [pipes.quote(sys.argv[0])]
 
 
 def _run_linter_one(linter, filename, contents, validate_only):
@@ -208,7 +219,7 @@ def main():
             print('%sLinter validation errors.%s '
                   'Please run `%s` to fix them.' % (
                       git_tools.COLORS.FAIL, git_tools.COLORS.NORMAL,
-                      git_tools.get_fix_commandline(sys.argv[0], args,
+                      git_tools.get_fix_commandline(_get_command_name(), args,
                                                     file_violations)),
                   file=sys.stderr)
         else:
