@@ -301,8 +301,9 @@ def _get_fix_args(prog_args, args, files=None):
 
 def get_fix_commandline(prog_args, args, files=None):
     '''Gets the commandline the developer must run to fix violations.'''
-    return ' '.join(prog_args +
-                    [pipes.quote(p) for p in _get_fix_args([], args, files)])
+    full_args = (
+        prog_args + [pipes.quote(p) for p in _get_fix_args([], args, files)])
+    return ' '.join(full_args)
 
 
 def verify_toolchain(binaries):

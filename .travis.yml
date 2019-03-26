@@ -6,7 +6,7 @@ python:
 sudo: false
 
 install:
-  - pip install pylint==2.2.2
+  - pip install pylint==2.3.1
   - pip install pycodestyle==2.5.0
 
 script:
