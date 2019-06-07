@@ -117,6 +117,24 @@ def _lint_javascript(filename, contents, extra_commands=None):
             return header + js_in.read()
 
 
+def _lint_typescript(filename, contents):
+    '''Runs prettier on |contents|.'''
+
+    args = [_which('prettier'), '--single-quote', '--trailing-comma=all',
+            '--no-config', '--stdin-filepath=%s' % filename]
+    logging.debug('lint_typescript: Running %s', args)
+    with subprocess.Popen(args, stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
+        new_contents, stderr = proc.communicate(contents)
+        retcode = proc.wait()
+
+        if retcode == 0:
+            return new_contents
+
+        raise LinterException(stderr)
+
+
 def _lint_html(contents, strict):
     '''Runs tidy on |contents|.'''
 
@@ -255,19 +273,20 @@ class VueHTMLParser(HTMLParser):
         lines = contents.split('\n')
 
         sections = []
-        for tag, starttag, start, end in self._tags:
+        for tag, attrs, starttag, start, end in self._tags:
             line_range = []
             if len(lines[start[0]]) > len(starttag) + start[1]:
                 line_range.append(lines[start[0]][len(starttag) + start[1]:])
             line_range += lines[start[0] + 1:end[0]]
             if end[1] > 0:
                 line_range.append(lines[end[0]][:end[1]])
-            sections.append((tag, starttag, '\n'.join(line_range)))
+            sections.append((tag, attrs, starttag, '\n'.join(line_range)))
         return sections
 
     def handle_starttag(self, tag, attrs):
         line, col = self.getpos()
-        self._stack.append((tag, self.get_starttag_text(), (line - 1, col)))
+        self._stack.append((tag, attrs, self.get_starttag_text(), (line - 1,
+                                                                   col)))
         if not self._id_linter_enabled:
             return
         for name, _ in attrs:
@@ -283,10 +302,10 @@ class VueHTMLParser(HTMLParser):
         if not self._stack or self._stack[-1][0] != tag:
             raise LinterException(
                 'Unclosed tag at line %d, column %d' % self.getpos())
-        _, starttag, begin = self._stack.pop()
+        _, attrs, starttag, begin = self._stack.pop()
         if not self._stack:
             line, col = self.getpos()
-            self._tags.append((tag, starttag, begin, (line - 1, col)))
+            self._tags.append((tag, attrs, starttag, begin, (line - 1, col)))
 
     def handle_comment(self, data):
         if data.find('id-lint ') < 0:
@@ -310,28 +329,34 @@ class VueLinter(Linter):
             raise LinterException(str(assertion))
 
         new_sections = []
-        for tag, starttag, section_contents in sections:
+        for tag, attrs, starttag, section_contents in sections:
             try:
                 if tag == 'script':
-                    new_section_contents = _lint_javascript(
-                        filename + '.js', section_contents.encode('utf-8'),
-                        self.__options.get('extra_js_linters'))
-                    new_sections.append('%s\n%s\n</%s>' % (
-                        starttag, new_section_contents.decode('utf-8'), tag))
+                    if any(val == 'ts' for name, val in attrs
+                           if name == 'lang'):
+                        new_section_contents = _lint_typescript(
+                            filename + '.ts', section_contents.encode('utf-8'))
+                    else:
+                        new_section_contents = _lint_javascript(
+                            filename + '.js', section_contents.encode('utf-8'),
+                            self.__options.get('extra_js_linters'))
+                    new_sections.append(
+                        '%s\n%s\n</%s>' %
+                        (starttag, new_section_contents.decode('utf-8'), tag))
                 elif tag == 'template':
-                    wrapped_contents = (
-                        b'<!DOCTYPE html>\n<html>\n<head>\n'
-                        + b'<title></title>\n</head><body>\n'
-                        + section_contents.encode('utf-8')
-                        + b'\n</body>\n</html>')
                     lines = _lint_html(
-                        wrapped_contents,
+                        (b'<!DOCTYPE html>\n<html>\n<head>\n'
+                         b'<title></title>\n</head><body>\n'
+                         b'%s\n'
+                         b'</body>\n</html>') %
+                        section_contents.encode('utf-8'),
                         strict=self.__options.get('strict',
                                                   False)).split(b'\n')
                     new_section_contents = b'\n'.join(
                         line.rstrip() for line in lines[6:-3])
-                    new_sections.append('%s\n%s\n</%s>' % (
-                        starttag, new_section_contents.decode('utf-8'), tag))
+                    new_sections.append(
+                        '%s\n%s\n</%s>' %
+                        (starttag, new_section_contents.decode('utf-8'), tag))
                 else:
                     new_sections.append('%s\n%s\n</%s>' % (
                         starttag, section_contents, tag))
