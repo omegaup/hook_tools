@@ -410,11 +410,12 @@ class PHPLinter(Linter):
         standard = self.__options.get(
             'standard', os.path.join(git_tools.HOOK_TOOLS_ROOT,
                                      'phpcbf/Standards/OmegaUp/ruleset.xml'))
-        self.__common_args = [_which('phpcbf'), '--encoding=utf-8',
+        self.__common_args = ['--encoding=utf-8',
                               '--standard=%s' % standard]
 
     def run_one(self, filename, contents):
-        args = self.__common_args + ['--stdin-path=%s' % filename]
+        args = ([_which('phpcbf')] + self.__common_args
+                + ['--stdin-path=%s' % filename])
         logging.debug('lint_php: Running %s', args)
         with subprocess.Popen(args, stdin=subprocess.PIPE,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -429,7 +430,23 @@ class PHPLinter(Linter):
             if retcode != 0 and not new_contents:
                 # phpcbf returns 1 if there was no change to the file. If there
                 # was an actual error, there won't be anything in stdout.
-                raise LinterException(stderr)
+                raise LinterException(stderr.decode('utf-8'))
+
+        # Even if phpcbf didn't find anything, phpcs might.
+        args = ([_which('phpcs'), '-n'] + self.__common_args
+                + ['--stdin-path=%s' % filename])
+        logging.debug('lint_php: Running %s', args)
+        with subprocess.Popen(args, stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
+            stdout, _ = proc.communicate(contents)
+            retcode = proc.wait()
+
+            if retcode != 0:
+                logging.debug('lint_php: Return code %d, stdout = %s',
+                              retcode, stdout)
+                raise LinterException(stdout.decode('utf-8').strip())
+
         return new_contents, ['php']
 
     def run_all(self, file_contents, contents_callback):

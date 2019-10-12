@@ -16,6 +16,7 @@ RUN pip3 install pyparsing==2.3.1
 
 # PHP support.
 RUN curl --location https://github.com/squizlabs/PHP_CodeSniffer/releases/download/3.4.0/phpcbf.phar -o /usr/bin/phpcbf && chmod 755 /usr/bin/phpcbf
+RUN curl --location https://github.com/squizlabs/PHP_CodeSniffer/releases/download/3.4.0/phpcs.phar -o /usr/bin/phpcs && chmod 755 /usr/bin/phpcs
 
 # JavaScript support.
 RUN git clone https://github.com/creationix/nvm.git /nvm
