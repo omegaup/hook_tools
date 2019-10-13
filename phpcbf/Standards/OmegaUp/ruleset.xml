@@ -5,6 +5,7 @@
 	<rule ref="OmegaUp.Classes.ClassDeclaration.OpenBraceSameLine"/>
 	<rule ref="OmegaUp.Classes.ClassDeclaration.NoBlankLineAfter" />
 	<rule ref="OmegaUp.Formatting.Cast.DisallowedCast" />
+	<rule ref="OmegaUp.Formatting.Cast.NullComparison.NullComparison" />
 
 	<!-- Inherit from PSR2 -->
 	<rule ref="PSR2">
