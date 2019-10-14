@@ -1,13 +1,15 @@
 <?php
 
-class CastSniff implements PHP_CodeSniffer\Sniffs\Sniff {
+namespace PHP_CodeSniffer\Standards\OmegaUp\Sniffs\Formatting;
+
+class CastSniff implements \PHP_CodeSniffer\Sniffs\Sniff {
     /**
      * Returns an array of tokens this test wants to listen for.
      *
      * @return array
      */
     public function register() {
-        return PHP_CodeSniffer\Util\Tokens::$castTokens;
+        return \PHP_CodeSniffer\Util\Tokens::$castTokens;
     }
 
     /**
@@ -19,17 +21,19 @@ class CastSniff implements PHP_CodeSniffer\Sniffs\Sniff {
      *
      * @return void
      */
-    public function process(PHP_CodeSniffer\Files\File $phpcsFile, $stackPtr) {
+    public function process(\PHP_CodeSniffer\Files\File $phpcsFile, $stackPtr) {
         $tokens    = $phpcsFile->getTokens();
         $errorData = [strtolower($tokens[$stackPtr]['content'])];
 
-        if ($tokens[$stackPtr]['code'] === T_BINARY_CAST
+        if (
+            $tokens[$stackPtr]['code'] === T_BINARY_CAST
             && $tokens[$stackPtr]['content'] === 'b'
         ) {
             // You can't replace a space after this type of binary casting.
             return;
         }
-        if ($tokens[$stackPtr]['code'] === T_ARRAY_CAST
+        if (
+            $tokens[$stackPtr]['code'] === T_ARRAY_CAST
             || $tokens[$stackPtr]['code'] === T_OBJECT_CAST
         ) {
             // These two don't have a function equivalent.

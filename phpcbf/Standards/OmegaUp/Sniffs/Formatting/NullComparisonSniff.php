@@ -1,6 +1,8 @@
 <?php
 
-class NullComparisonSniff implements PHP_CodeSniffer\Sniffs\Sniff {
+namespace PHP_CodeSniffer\Standards\OmegaUp\Sniffs\Formatting;
+
+class NullComparisonSniff implements \PHP_CodeSniffer\Sniffs\Sniff {
     /**
      * Returns an array of tokens this test wants to listen for.
      *
@@ -24,16 +26,22 @@ class NullComparisonSniff implements PHP_CodeSniffer\Sniffs\Sniff {
      *
      * @return void
      */
-    public function process(PHP_CodeSniffer\Files\File $phpcsFile, $stackPtr) {
+    public function process(\PHP_CodeSniffer\Files\File $phpcsFile, $stackPtr) {
         $tokens    = $phpcsFile->getTokens();
         $errorData = [strtolower($tokens[$stackPtr]['content'])];
 
-        $nullValue = $phpcsFile->findNext(T_WHITESPACE, $stackPtr + 1, null, true);
+        $nullValue = $phpcsFile->findNext(
+            T_WHITESPACE,
+            $stackPtr + 1,
+            null,
+            true
+        );
         if ($tokens[$nullValue]['code'] !== T_NULL) {
             return;
         }
 
-        if ($tokens[$stackPtr]['code'] == T_IS_EQUAL
+        if (
+            $tokens[$stackPtr]['code'] == T_IS_EQUAL
             || $tokens[$stackPtr]['code'] === T_IS_IDENTICAL
         ) {
             $phpcsFile->addError(
@@ -52,4 +60,3 @@ class NullComparisonSniff implements PHP_CodeSniffer\Sniffs\Sniff {
         }
     }
 }
-

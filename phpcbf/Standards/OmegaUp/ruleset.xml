@@ -6,24 +6,31 @@
 	<rule ref="OmegaUp.Classes.ClassDeclaration.NoBlankLineAfter" />
 	<rule ref="OmegaUp.Formatting.Cast.DisallowedCast" />
 	<rule ref="OmegaUp.Formatting.Cast.NullComparison.NullComparison" />
+	<rule ref="OmegaUp.Functions.MultiLineFunctionDeclaration">
+		<exclude name="OmegaUp.Functions.MultiLineFunctionDeclaration.BraceOnSameLine"/>
+	</rule>
+	<rule ref="OmegaUp.Methods.FunctionCallSignature"/>
 
-	<!-- Inherit from PSR2 -->
-	<rule ref="PSR2">
+	<!-- Inherit from PSR-12 -->
+	<rule ref="PSR12">
 		<!-- Braces on the same line -->
 		<exclude name="PSR2.Classes.ClassDeclaration.OpenBraceNewLine"/>
-		<exclude name="Squiz.Functions.MultiLineFunctionDeclaration.BraceOnNewLine"/>
-		<exclude name="Squiz.Functions.MultiLineFunctionDeclaration.BraceOnSameLine" />
+		<exclude name="Generic.Functions.OpeningFunctionBraceBsdAllman"/>
 		<exclude name="PSR2.Namespaces.NamespaceDeclaration.BlankLineAfter"/>
+		<!-- Overridden by OmegaUp.Functions.MultiLineFunctionDeclaration -->
+		<exclude name="Squiz.Functions.MultiLineFunctionDeclaration"/>
+		<!-- Overridden by OmegaUp.Methods.FunctionCallSignature -->
+		<exclude name="PSR2.Methods.FunctionCallSignature"/>
 
 		<!-- TODO(lhchavez): Remove these. -->
 		<exclude name="PSR1.Classes.ClassDeclaration.MissingNamespace"/>
 		<exclude name="PSR1.Classes.ClassDeclaration.MultipleClasses"/>
 		<exclude name="PSR1.Files.SideEffects.FoundWithSymbols"/>
 		<exclude name="PSR1.Methods.CamelCapsMethodName.NotCamelCaps"/>
+		<exclude name="PSR12.Files.FileHeader.SpacingAfterBlock"/>
 	</rule>
 
 	<!-- Braces on the same line -->
-	<rule ref="Squiz.Functions.MultiLineFunctionDeclaration.BraceOnSameLine"/>
 	<rule ref="Generic.Functions.OpeningFunctionBraceKernighanRitchie"/>
 
 	 <!-- There MUST NOT be trailing whitespace. EVER. -->

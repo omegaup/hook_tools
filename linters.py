@@ -433,7 +433,7 @@ class PHPLinter(Linter):
                 raise LinterException(stderr.decode('utf-8'))
 
         # Even if phpcbf didn't find anything, phpcs might.
-        args = ([_which('phpcs'), '-n'] + self.__common_args
+        args = ([_which('phpcs'), '-n', '-s', '-q'] + self.__common_args
                 + ['--stdin-path=%s' % filename])
         logging.debug('lint_php: Running %s', args)
         with subprocess.Popen(args, stdin=subprocess.PIPE,
