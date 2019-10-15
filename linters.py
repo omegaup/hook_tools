@@ -426,11 +426,17 @@ class PHPLinter(Linter):
             if retcode != 0:
                 logging.debug('lint_php: Return code %d, stderr = %s',
                               retcode, stderr)
+                if not new_contents:
+                    # phpcbf returns 1 if there was no change to the file. If
+                    # there was an actual error, there won't be anything in
+                    # stdout.
+                    raise LinterException(stderr.decode('utf-8'))
 
-            if retcode != 0 and not new_contents:
-                # phpcbf returns 1 if there was no change to the file. If there
-                # was an actual error, there won't be anything in stdout.
-                raise LinterException(stderr.decode('utf-8'))
+            if new_contents != contents:
+                # If phpcbf was able to fix anything, let's go with that
+                # instead of running phpcs. Otherwise, phpcs will return
+                # non-zero and the suggestions won't be used.
+                return new_contents, ['php']
 
         # Even if phpcbf didn't find anything, phpcs might.
         args = ([_which('phpcs'), '-n', '-s', '-q'] + self.__common_args
