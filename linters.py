@@ -10,7 +10,6 @@ import os
 import os.path
 import re
 import subprocess
-import sys
 import tempfile
 
 from . import git_tools  # pylint: disable=relative-beyond-top-level
@@ -34,14 +33,7 @@ def _which(program):
     raise Exception('`%s` not found' % program)
 
 
-_CLANG_FORMAT_PATH = '/usr/bin/clang-format-3.7'
-# pylint: disable=fixme
-# TODO(lhchavez): Use closure compiler instead since closure-linter does not
-# support ES6 correctly.
-_FIXJSSTYLE_PATH = _find_pip_tool('fixjsstyle')
 _TIDY_PATH = os.path.join(git_tools.HOOK_TOOLS_ROOT, 'tidy')
-
-_JAVASCRIPT_TOOLCHAIN_VERIFIED = False
 
 
 class LinterException(Exception):
@@ -76,19 +68,7 @@ def _custom_command(command, filename, original_filename):
 
 
 def _lint_javascript(filename, contents, extra_commands=None):
-    '''Runs clang-format and the Google Closure Compiler on |contents|.'''
-
-    global _JAVASCRIPT_TOOLCHAIN_VERIFIED  # pylint: disable=global-statement
-
-    if not _JAVASCRIPT_TOOLCHAIN_VERIFIED and not git_tools.verify_toolchain({
-            _CLANG_FORMAT_PATH: 'sudo apt-get install clang-format-3.7',
-            _FIXJSSTYLE_PATH: (
-                'pip install --user '
-                'https://github.com/google/closure-linter/zipball/master'),
-    }):
-        sys.exit(1)
-
-    _JAVASCRIPT_TOOLCHAIN_VERIFIED = True
+    '''Runs prettier on |contents|.'''
 
     with tempfile.NamedTemporaryFile(suffix='.js') as js_out:
         # Keep the shebang unmodified.
@@ -101,9 +81,10 @@ def _lint_javascript(filename, contents, extra_commands=None):
         js_out.flush()
 
         commands = [
-            [_FIXJSSTYLE_PATH, '--strict', js_out.name],
-            [_CLANG_FORMAT_PATH, '-style=Google',
-             '-assume-filename=%s' % filename, '-i', js_out.name],
+            [
+                _which('prettier'), '--single-quote', '--trailing-comma=all',
+                '--no-config', '--write', js_out.name
+            ],
         ] + [
             _custom_command(command, js_out.name, filename)
             for command in (extra_commands or [])
