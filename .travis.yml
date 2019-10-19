@@ -8,8 +8,9 @@ sudo: false
 install:
   - pip install pylint==2.3.1
   - pip install pycodestyle==2.5.0
+  - pip install mypy==0.740
 
 script:
   - python3 linters_test.py
   - python3 git_tools_test.py
-  - python3 lint.py validate --all
+  - MYPYPATH="${PWD}/.." python3 lint.py validate --all

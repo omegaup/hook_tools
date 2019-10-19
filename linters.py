@@ -11,11 +11,16 @@ import os.path
 import re
 import shlex
 import subprocess
+import sys
 import tempfile
 from typing import (Any, Callable, Dict, List, Mapping, Optional, Text,
                     Sequence, Tuple)
 
-from . import git_tools  # pylint: disable=relative-beyond-top-level
+if __name__ == "__main__" and __package__ is None:
+    sys.path.append(os.path.dirname(sys.path[0]))
+    __package__ = "hook_tools"  # pylint: disable=redefined-builtin
+
+from hook_tools import git_tools  # pylint: disable=E0402,C0413
 
 
 def _find_pip_tool(name: Text) -> Text:
