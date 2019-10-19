@@ -13,6 +13,8 @@ import pipes
 import re
 import subprocess
 import sys
+from typing import (Any, Iterable, Iterator, List, Mapping, Optional, Sequence,
+                    Text)
 
 
 HOOK_TOOLS_ROOT = os.path.abspath(os.path.join(__file__, '..'))
@@ -37,17 +39,17 @@ class Argument:
     '''Class that represents a single argument for argparse.ArgumentParser.'''
     # pylint: disable=R0903
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         self.args = args
         self.kwargs = kwargs
 
-    def add_to(self, parser):
+    def add_to(self, parser: argparse.ArgumentParser) -> None:
         '''Adds an additional argument to the parser.'''
 
         parser.add_argument(*self.args, **self.kwargs)
 
 
-def get_explicit_file_list(commits):
+def get_explicit_file_list(commits: List[Text]) -> Sequence[Text]:
     '''Returns the explicit file list from the commandline.
 
     Developers might want to use an explicit file list in case there is a file
@@ -73,7 +75,7 @@ def get_explicit_file_list(commits):
             universal_newlines=True,
             cwd=root_dir()).strip()
         if not commit_refs_output:
-            commit_refs = []
+            commit_refs: List[Text] = []
         else:
             commit_refs = commit_refs_output.split('\n')
     except subprocess.CalledProcessError:
@@ -84,7 +86,7 @@ def get_explicit_file_list(commits):
     return files
 
 
-def _validate_args(args, files):
+def _validate_args(args: argparse.Namespace, files: Sequence[Text]) -> bool:
     '''Validates whether args is valid.
 
     args.commits is valid if it has one commit (diffing from that commit
@@ -106,7 +108,7 @@ def _validate_args(args, files):
     return True
 
 
-def _get_all_files():
+def _get_all_files() -> Iterator[bytes]:
     '''Returns the list of all files at HEAD (and maybe in the index).'''
 
     for path in subprocess.check_output(['/usr/bin/git', 'ls-files', '-z'],
@@ -115,7 +117,7 @@ def _get_all_files():
             yield path
 
 
-def _get_changed_files(commits):
+def _get_changed_files(commits: List[Text]) -> Iterator[bytes]:
     ''' Returns the list of files that were modified in the specified range.'''
 
     if not commits:
@@ -135,26 +137,23 @@ def _get_changed_files(commits):
         match = GIT_DIFF_TREE_PATTERN.match(tokens[idx])
         assert match, tokens[idx]
         filemode, status = match.groups()
-        src = tokens[idx + 1]
-        if status in ('C', 'R'):
-            dest = tokens[idx + 2]
-            idx += 3
-        else:
-            dest = None
-            idx += 2
         if filemode == GIT_DIRECTORY_ENTRY_MODE:
             # Files with the 160000 mode are not actually files or
             # directories.  They just are directory entries, and they
             # typically appear in the path where submodules are inserted
             # into the tree.
             continue
-        if dest:
+        src = tokens[idx + 1]
+        if status in ('C', 'R'):
+            dest = tokens[idx + 2]
+            idx += 3
             yield dest
         else:
+            idx += 2
             yield src
 
 
-def _files_to_consider(args):
+def _files_to_consider(args: argparse.Namespace) -> List[Text]:
     '''Returns the list of files to consider, based on |args|' commits.'''
 
     # Get all files in the latter commit.
@@ -166,7 +165,7 @@ def _files_to_consider(args):
     return sorted([str(filename, encoding='utf-8') for filename in result])
 
 
-def prompt(question, default=True):
+def prompt(question: Text, default: bool = True) -> bool:
     '''Asks the user a yes/no question.'''
     if sys.stdin.closed or not sys.stdin.isatty():
         return default
@@ -197,7 +196,8 @@ def prompt(question, default=True):
     return default
 
 
-def file_contents(args, root, filename):
+def file_contents(args: argparse.Namespace, root: Text,
+                  filename: Text) -> bytes:
     '''Returns contents of |filename| at the revision specified by |args|.'''
     if len(args.commits) in (0, 1):
         # Zero or one commits (where the former is a shorthand for 'HEAD')
@@ -210,14 +210,16 @@ def file_contents(args, root, filename):
             ['/usr/bin/git', 'show', '%s:%s' % (args.commits[-1], filename)])
 
 
-def root_dir():
+def root_dir() -> Text:
     '''Returns the top-level directory of the project.'''
     return subprocess.check_output(
         ['/usr/bin/git', 'rev-parse', '--show-toplevel'],
         universal_newlines=True).strip()
 
 
-def parse_arguments(tool_description=None, extra_arguments=()):
+def parse_arguments(
+        tool_description: Optional[Text] = None,
+        extra_arguments: Sequence[Argument] = ()) -> argparse.Namespace:
     '''Parses the commandline arguments.'''
     parser = argparse.ArgumentParser(description=tool_description)
     parser.add_argument(
@@ -287,7 +289,9 @@ def parse_arguments(tool_description=None, extra_arguments=()):
     return args
 
 
-def _get_fix_args(prog_args, args, files=None):
+def _get_fix_args(prog_args: List[Text],
+                  args: argparse.Namespace,
+                  files: Optional[Iterable[Text]] = None) -> Sequence[Text]:
     '''Gets the command arguments to run to fix violations.'''
     params = prog_args + ['fix']
     params.extend(args.commits)
@@ -299,14 +303,16 @@ def _get_fix_args(prog_args, args, files=None):
     return params
 
 
-def get_fix_commandline(prog_args, args, files=None):
+def get_fix_commandline(prog_args: List[Text],
+                        args: argparse.Namespace,
+                        files: Optional[Iterable[Text]] = None) -> Text:
     '''Gets the commandline the developer must run to fix violations.'''
     full_args = (
         prog_args + [pipes.quote(p) for p in _get_fix_args([], args, files)])
     return ' '.join(full_args)
 
 
-def verify_toolchain(binaries):
+def verify_toolchain(binaries: Mapping[Text, Text]) -> bool:
     '''Verifies that the developer has all necessary tools installed.'''
     success = True
     for path, install_cmd in binaries.items():
@@ -318,16 +324,18 @@ def verify_toolchain(binaries):
     return success
 
 
-def _is_single_commit_pushed(args):
+def _is_single_commit_pushed(args: argparse.Namespace) -> bool:
     '''Returns whether a single commit is being pushed.'''
     if len(args.commits) != 2:
         return False
-    return args.commits[0] == subprocess.check_output(
+    return str(args.commits[0]) == subprocess.check_output(
         ['/usr/bin/git', 'rev-parse', '%s^' % args.commits[1]],
         universal_newlines=True).strip()
 
 
-def attempt_automatic_fixes(scriptname, args, files=None):
+def attempt_automatic_fixes(scriptname: Text,
+                            args: argparse.Namespace,
+                            files: Optional[Iterable[Text]] = None) -> bool:
     '''Attempts to automatically fix any fixable errors.'''
     if sys.stdin.closed or not sys.stdin.isatty():
         # There is no one to ask.

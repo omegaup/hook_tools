@@ -19,7 +19,7 @@ from hook_tools import linters  # pylint: disable=E0402,C0413
 class TestLinters(unittest.TestCase):
     """Tests the linters."""
 
-    def test_whitespace(self):
+    def test_whitespace(self) -> None:
         """Tests WhitespaceLinter."""
 
         linter = linters.WhitespaceLinter()
@@ -55,7 +55,7 @@ class TestLinters(unittest.TestCase):
             'empty lines before a closing brace',
         ])
 
-    def test_command(self):
+    def test_command(self) -> None:
         """Tests CommandLinter."""
 
         linter = linters.CommandLinter({
@@ -68,14 +68,15 @@ class TestLinters(unittest.TestCase):
         self.assertEqual(violations, ['command'])
 
     @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
-    def test_javascript(self):
+    def test_javascript(self) -> None:
         """Tests JavaScriptLinter."""
 
         linter = linters.JavaScriptLinter()
 
-        new_contents, violations = linter.run_one('test.js',
-                                                  b'  function(){a;b;c;};\n')
-        self.assertEqual(new_contents, b'function() {\n  a;\n  b;\n  c;\n}\n')
+        new_contents, violations = linter.run_one(
+            'test.js', b'  function x ( ){a;b;c;};\n')
+        self.assertEqual(new_contents,
+                         b'function x() {\n  a;\n  b;\n  c;\n}\n')
         self.assertEqual(violations, ['javascript'])
 
         new_contents, violations = linter.run_one(
@@ -84,7 +85,7 @@ class TestLinters(unittest.TestCase):
         self.assertEqual(violations, ['javascript'])
 
     @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
-    def test_vue(self):
+    def test_vue(self) -> None:
         """Tests VueLinter."""
 
         linter = linters.VueLinter()
@@ -101,7 +102,7 @@ class TestLinters(unittest.TestCase):
         self.assertEqual(violations, ['vue'])
 
     @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
-    def test_html(self):
+    def test_html(self) -> None:
         """Tests HTMLLinter."""
 
         linter = linters.HTMLLinter()
@@ -117,7 +118,7 @@ class TestLinters(unittest.TestCase):
         self.assertEqual(violations, ['html'])
 
     @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
-    def test_php(self):
+    def test_php(self) -> None:
         """Tests PHPLinter."""
 
         linter = linters.PHPLinter()
@@ -129,7 +130,7 @@ class TestLinters(unittest.TestCase):
             b'<?php\necho [\'foo\'];\n')
         self.assertEqual(violations, ['php'])
 
-    def test_python(self):
+    def test_python(self) -> None:
         """Tests PythonLinter."""
 
         linter = linters.PythonLinter()

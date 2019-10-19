@@ -18,23 +18,22 @@ from hook_tools import git_tools  # pylint: disable=E0402,C0413
 class TestGitTools(unittest.TestCase):
     """Tests git tools."""
 
-    def test_get_explicit_file_list(self):
+    def test_get_explicit_file_list(self) -> None:
         """Tests git_tools.get_explicit_file_list()."""
 
-        for args, expected in [
+        for commits, expected in [
                 # Explicit separator.
-                (('--', 'HEAD', 'foo'), ([], ['HEAD', 'foo'])),
-                (('HEAD', '--', 'foo'), (['HEAD'], ['foo'])),
-                (('HEAD', 'foo', '--'), (['HEAD', 'foo'], [])),
+                (['--', 'HEAD', 'foo'], ([], ['HEAD', 'foo'])),
+                (['HEAD', '--', 'foo'], (['HEAD'], ['foo'])),
+                (['HEAD', 'foo', '--'], (['HEAD', 'foo'], [])),
 
                 # Sniffing.
-                (('HEAD',), (['HEAD'], [])),
-                (('foo',), ([], ['foo'])),
-                (('HEAD', 'foo'), (['HEAD'], ['foo'])),
-                (('HEAD', 'foo', 'HEAD'), (['HEAD'], ['foo', 'HEAD'])),
-                (('HEAD', 'HEAD', 'foo'), (['HEAD', 'HEAD'], ['foo'])),
+                (['HEAD'], (['HEAD'], [])),
+                (['foo'], ([], ['foo'])),
+                (['HEAD', 'foo'], (['HEAD'], ['foo'])),
+                (['HEAD', 'foo', 'HEAD'], (['HEAD'], ['foo', 'HEAD'])),
+                (['HEAD', 'HEAD', 'foo'], (['HEAD', 'HEAD'], ['foo'])),
         ]:
-            commits = list(args)
             files = git_tools.get_explicit_file_list(commits)
             self.assertEqual((commits, files), expected)
 

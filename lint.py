@@ -5,6 +5,7 @@
 
 from __future__ import print_function
 
+import argparse
 import json
 import logging
 import multiprocessing
@@ -12,6 +13,8 @@ import os.path
 import pipes
 import re
 import sys
+from typing import (Any, Callable, Dict, Iterator, List, Mapping, Optional,
+                    Sequence, Set, Text, Tuple)
 
 if __name__ == "__main__" and __package__ is None:
     sys.path.append(os.path.dirname(sys.path[0]))
@@ -20,8 +23,9 @@ if __name__ == "__main__" and __package__ is None:
 from hook_tools import linters  # pylint: disable=E0402,C0413
 from hook_tools import git_tools  # pylint: disable=E0402,C0413
 
+LinterFactory = Callable[..., linters.Linter]
 
-_LINTER_MAPPING = {
+_LINTER_MAPPING: Dict[Text, LinterFactory] = {
     'whitespace': linters.WhitespaceLinter,
     'javascript': linters.JavaScriptLinter,
     'html': linters.HTMLLinter,
@@ -33,7 +37,7 @@ _LINTER_MAPPING = {
 _ROOT = git_tools.root_dir()
 
 
-def _get_command_name():
+def _get_command_name() -> List[Text]:
     '''Returns the name of the command needed to invoke this script.'''
     if os.environ.get('DOCKER') == 'true':
         return [
@@ -43,7 +47,8 @@ def _get_command_name():
     return [pipes.quote(sys.argv[0])]
 
 
-def _run_linter_one(linter, filename, contents, validate_only):
+def _run_linter_one(linter: linters.Linter, filename: Text, contents: bytes,
+                    validate_only: bool) -> Tuple[Optional[Text], bool]:
     '''Runs the linter against one file.'''
     try:
         new_contents, violations = linter.run_one(filename, contents)
@@ -61,7 +66,9 @@ def _run_linter_one(linter, filename, contents, validate_only):
                                   violations, True)
 
 
-def _run_linter_all(args, linter, files, validate_only):
+def _run_linter_all(args: argparse.Namespace, linter: linters.Linter,
+                    files: Sequence[Text], validate_only: bool
+                    ) -> Sequence[Tuple[Optional[Text], bool]]:
     try:
         new_file_contents, original_contents, violations = linter.run_all(
             files, lambda filename: git_tools.file_contents(args, _ROOT,
@@ -73,10 +80,10 @@ def _run_linter_all(args, linter, files, validate_only):
                lex.message), file=sys.stderr)
         return [(filename, lex.fixable) for filename in files]
 
-    result = []
+    result: List[Tuple[Optional[Text], bool]] = []
     for filename in new_file_contents:
         if original_contents[filename] == new_file_contents[filename]:
-            result.append([None, False])
+            result.append((None, False))
         else:
             result.append(_report_linter_results(filename,
                                                  new_file_contents[filename],
@@ -85,8 +92,9 @@ def _run_linter_all(args, linter, files, validate_only):
     return result
 
 
-def _report_linter_results(filename, new_contents, validate, violations,
-                           fixable):
+def _report_linter_results(filename: Text, new_contents: bytes, validate: bool,
+                           violations: Sequence[Text],
+                           fixable: bool) -> Tuple[Text, bool]:
     violations_message = ', '.join(
         '%s%s%s' %
         (git_tools.COLORS.FAIL, violation, git_tools.COLORS.NORMAL)
@@ -106,7 +114,9 @@ def _report_linter_results(filename, new_contents, validate, violations,
     return filename, fixable
 
 
-def _run_linter(args, linter, filenames, validate_only):
+def _run_linter(args: argparse.Namespace, linter: linters.Linter,
+                filenames: Sequence[Text],
+                validate_only: bool) -> Tuple[Set[Text], bool]:
     '''Runs the linter against all files.'''
     logging.debug('%s: Files to consider: %s',
                   linter.name, ' '.join(filenames))
@@ -124,7 +134,10 @@ def _run_linter(args, linter, filenames, validate_only):
             any(fixable for _, fixable in results))
 
 
-def _get_enabled_linters(config, config_file_path, linter_whitelist):
+def _get_enabled_linters(
+        config: Mapping[Text, Any], config_file_path: Text,
+        linter_whitelist: Text
+) -> Iterator[Tuple[LinterFactory, Mapping[Text, Any]]]:
     '''Loads any custom linters.'''
     available_linters = dict(_LINTER_MAPPING)
 
@@ -160,7 +173,7 @@ def _get_enabled_linters(config, config_file_path, linter_whitelist):
         yield available_linters[linter_name], options
 
 
-def main():
+def main() -> None:
     '''Runs the linters against the chosen files.'''
 
     args = git_tools.parse_arguments(
@@ -183,7 +196,7 @@ def main():
     with open(args.config_file, 'r') as config_file:
         config = json.load(config_file)
 
-    file_violations = set()
+    file_violations: Set[Text] = set()
     fixable = False
 
     for linter, options in _get_enabled_linters(config, args.config_file,

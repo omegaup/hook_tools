@@ -12,6 +12,7 @@ RUN pip3 install pylint==2.4.1
 RUN pip3 install pycodestyle==2.5.0
 RUN pip3 install Jinja2==2.10.3
 RUN pip3 install pyparsing==2.4.2
+RUN pip3 install mypy==0.740
 
 # PHP support.
 RUN curl --location https://github.com/squizlabs/PHP_CodeSniffer/releases/download/3.5.0/phpcbf.phar -o /usr/bin/phpcbf && chmod 755 /usr/bin/phpcbf

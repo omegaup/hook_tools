@@ -6,7 +6,7 @@
 import sys
 
 
-def main():
+def main() -> None:
     """Main entrypoint."""
 
     filename = sys.argv[1]
