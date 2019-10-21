@@ -142,6 +142,7 @@ def _get_changed_files(commits: List[Text]) -> Iterator[bytes]:
             # directories.  They just are directory entries, and they
             # typically appear in the path where submodules are inserted
             # into the tree.
+            idx += 2
             continue
         src = tokens[idx + 1]
         if status in ('C', 'R'):
