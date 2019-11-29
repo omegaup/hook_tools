@@ -107,33 +107,20 @@ def _lint_javascript(filename: Text,
             return header + js_in.read()
 
 
-def _lint_typescript(filename: Text, contents: bytes) -> bytes:
-    '''Runs prettier on |contents|.'''
-
-    args = [_which('prettier'), '--single-quote', '--trailing-comma=all',
-            '--no-config', '--stdin-filepath=%s' % filename]
-    logging.debug('lint_typescript: Running %s', args)
-    with subprocess.Popen(args, stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                          cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
-        new_contents, stderr = proc.communicate(contents)
-        retcode = proc.wait()
-
-        if retcode == 0:
-            return new_contents
-
-        raise LinterException(stderr.decode('utf-8', errors='replace'))
-
-
 def _lint_html(contents: bytes, strict: bool) -> bytes:
     '''Runs tidy on |contents|.'''
 
-    args = [_TIDY_PATH, '-q', '-config',
-            os.path.join(git_tools.HOOK_TOOLS_ROOT, 'tidy.txt')]
+    args = [
+        _TIDY_PATH, '-q', '-config',
+        os.path.join(git_tools.HOOK_TOOLS_ROOT, 'tidy.txt')
+    ]
     logging.debug('lint_html: Running %s', args)
-    with subprocess.Popen(args, stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                          cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
+    with subprocess.Popen(
+            args,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
         new_contents, stderr = proc.communicate(contents)
         retcode = proc.wait()
 
@@ -144,6 +131,28 @@ def _lint_html(contents: bytes, strict: bool) -> bytes:
             return new_contents
 
         raise LinterException(stderr.decode('utf-8', errors='replace'))
+
+
+def _lint_prettier(contents: bytes, filename: Text) -> bytes:
+    '''Runs prettier on |contents| .'''
+    args = [
+        _which('prettier'), '--single-quote', '--trailing-comma=all',
+        '--no-config',
+        '--stdin-filepath=%s' % filename
+    ]
+    logging.debug('lint_vue: Running %s', args)
+    with subprocess.Popen(
+            args,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
+        new_contents, stderr = proc.communicate(contents)
+
+        if proc.wait() != 0:
+            raise LinterException(stderr.decode('utf-8', errors='replace'))
+
+        return new_contents
 
 
 class Linter:
@@ -175,6 +184,7 @@ class Linter:
 
 class JavaScriptLinter(Linter):
     '''Runs the Google Closure Compiler linter+prettier against |files|.'''
+
     # pylint: disable=R0903
 
     def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
@@ -188,8 +198,8 @@ class JavaScriptLinter(Linter):
                                      self.__options.get('extra_js_linters')),
                     ['javascript'])
         except subprocess.CalledProcessError as cpe:
-            raise LinterException(str(b'\n'.join(cpe.output.split(b'\n')[1:]),
-                                      encoding='utf-8'))
+            raise LinterException(
+                str(b'\n'.join(cpe.output.split(b'\n')[1:]), encoding='utf-8'))
 
     def run_all(
             self, filenames: Sequence[Text],
@@ -210,10 +220,10 @@ class WhitespaceLinter(Linter):
         ('Windows-style EOF', re.compile(br'\r\n?'), br'\n'),
         ('trailing whitespace', re.compile(br'[ \t]+\n'), br'\n'),
         ('consecutive empty lines', re.compile(br'\n\n\n+'), br'\n\n'),
-        ('empty lines after an opening brace',
-         re.compile(br'{\n\n+'), br'{\n'),
-        ('empty lines before a closing brace',
-         re.compile(br'\n+\n(\s*})'), br'\n\1'),
+        ('empty lines after an opening brace', re.compile(br'{\n\n+'),
+         br'{\n'),
+        ('empty lines before a closing brace', re.compile(br'\n+\n(\s*})'),
+         br'\n\1'),
     ]
 
     def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
@@ -254,6 +264,7 @@ class WhitespaceLinter(Linter):
 
 class VueHTMLParser(HTMLParser):
     '''A parser that can understand .vue template files.'''
+
     # pylint: disable=R0903
 
     def __init__(self) -> None:
@@ -322,6 +333,7 @@ class VueHTMLParser(HTMLParser):
 
 class VueLinter(Linter):
     '''A linter for .vue files.'''
+
     # pylint: disable=R0903
 
     def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
@@ -337,37 +349,10 @@ class VueLinter(Linter):
             raise LinterException(str(assertion))
 
         new_sections = []
-        for tag, attrs, starttag, section_contents in sections:
+        for tag, _, starttag, section_contents in sections:
             try:
-                if tag == 'script':
-                    if any(val == 'ts' for name, val in attrs
-                           if name == 'lang'):
-                        new_section_contents = _lint_typescript(
-                            filename + '.ts', section_contents.encode('utf-8'))
-                    else:
-                        new_section_contents = _lint_javascript(
-                            filename + '.js', section_contents.encode('utf-8'),
-                            self.__options.get('extra_js_linters'))
-                    new_sections.append(
-                        '%s\n%s\n</%s>' %
-                        (starttag, new_section_contents.decode('utf-8'), tag))
-                elif tag == 'template':
-                    lines = _lint_html(
-                        (b'<!DOCTYPE html>\n<html>\n<head>\n'
-                         b'<title></title>\n</head><body>\n'
-                         b'%s\n'
-                         b'</body>\n</html>') %
-                        section_contents.encode('utf-8'),
-                        strict=bool(self.__options.get('strict',
-                                                       False))).split(b'\n')
-                    new_section_contents = b'\n'.join(
-                        line.rstrip() for line in lines[6:-3])
-                    new_sections.append(
-                        '%s\n%s\n</%s>' %
-                        (starttag, new_section_contents.decode('utf-8'), tag))
-                else:
-                    new_sections.append('%s\n%s\n</%s>' % (
-                        starttag, section_contents, tag))
+                new_sections.append('%s\n%s\n</%s>' %
+                                    (starttag, section_contents.rstrip(), tag))
             except subprocess.CalledProcessError as cpe:
                 raise LinterException(
                     str(b'\n'.join(cpe.output.split(b'\n')[1:]),
@@ -377,7 +362,10 @@ class VueLinter(Linter):
             raise LinterException('Mismatched sections: expecting %d, got %d' %
                                   (len(sections), len(new_sections)))
 
-        return ('\n\n'.join(new_sections)).encode('utf-8') + b'\n', ['vue']
+        # Finally, run prettier on the whole thing.
+        return _lint_prettier(
+            '\n\n'.join(new_sections).encode('utf-8') + b'\n',
+            filename), ['vue']
 
     def run_all(
             self, filenames: Sequence[Text],
@@ -391,7 +379,8 @@ class VueLinter(Linter):
 
 
 class HTMLLinter(Linter):
-    '''Runs HTML Tidy.'''
+    '''Runs HTML Tidy + prettier.'''
+
     # pylint: disable=R0903
 
     def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
@@ -400,9 +389,11 @@ class HTMLLinter(Linter):
 
     def run_one(self, filename: Text,
                 contents: bytes) -> Tuple[bytes, Sequence[Text]]:
-        return (_lint_html(contents,
-                           strict=bool(self.__options.get('strict', False))),
-                ['html'])
+        contents = _lint_html(
+            contents, strict=bool(self.__options.get('strict', False)))
+
+        # Finally, run prettier on the whole thing.
+        return _lint_prettier(contents, filename), ['html']
 
     def run_all(
             self, filenames: Sequence[Text],
@@ -417,31 +408,35 @@ class HTMLLinter(Linter):
 
 class PHPLinter(Linter):
     '''Runs the PHP Code Beautifier.'''
+
     # pylint: disable=R0903
 
     def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
         super().__init__()
         self.__options = options or {}
         standard = self.__options.get(
-            'standard', os.path.join(git_tools.HOOK_TOOLS_ROOT,
-                                     'phpcbf/Standards/OmegaUp/ruleset.xml'))
-        self.__common_args = ['--encoding=utf-8',
-                              '--standard=%s' % standard]
+            'standard',
+            os.path.join(git_tools.HOOK_TOOLS_ROOT,
+                         'phpcbf/Standards/OmegaUp/ruleset.xml'))
+        self.__common_args = ['--encoding=utf-8', '--standard=%s' % standard]
 
     def run_one(self, filename: Text,
                 contents: bytes) -> Tuple[bytes, Sequence[Text]]:
         args = ([_which('phpcbf')] + self.__common_args
                 + ['--stdin-path=%s' % filename])
         logging.debug('lint_php: Running %s', args)
-        with subprocess.Popen(args, stdin=subprocess.PIPE,
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                              cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
+        with subprocess.Popen(
+                args,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
             new_contents, stderr = proc.communicate(contents)
             retcode = proc.wait()
 
             if retcode != 0:
-                logging.debug('lint_php: Return code %d, stderr = %s',
-                              retcode, stderr)
+                logging.debug('lint_php: Return code %d, stderr = %s', retcode,
+                              stderr)
                 if not new_contents:
                     # phpcbf returns 1 if there was no change to the file. If
                     # there was an actual error, there won't be anything in
@@ -458,15 +453,18 @@ class PHPLinter(Linter):
         args = ([_which('phpcs'), '-n', '-s', '-q'] + self.__common_args
                 + ['--stdin-path=%s' % filename])
         logging.debug('lint_php: Running %s', args)
-        with subprocess.Popen(args, stdin=subprocess.PIPE,
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                              cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
+        with subprocess.Popen(
+                args,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
             stdout, _ = proc.communicate(contents)
             retcode = proc.wait()
 
             if retcode != 0:
-                logging.debug('lint_php: Return code %d, stdout = %s',
-                              retcode, stdout)
+                logging.debug('lint_php: Return code %d, stdout = %s', retcode,
+                              stdout)
                 raise LinterException(stdout.decode('utf-8').strip())
 
         return new_contents, ['php']
@@ -484,6 +482,7 @@ class PHPLinter(Linter):
 
 class PythonLinter(Linter):
     '''Runs pycodestyle, pylint, and Mypy.'''
+
     # pylint: disable=R0903
 
     def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
@@ -510,14 +509,16 @@ class PythonLinter(Linter):
                 subprocess.check_output(args, stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError as cpe:
                 raise LinterException(
-                    str(cpe.output, encoding='utf-8').replace(tmp_path,
-                                                              filename),
+                    str(cpe.output, encoding='utf-8').replace(
+                        tmp_path, filename),
                     fixable=False)
 
             # We need to disable import-error since the file won't be checked
             # in the repository, but in a temporary directory.
-            args = [python3, '-m', 'pylint', '--output-format=parseable',
-                    '--reports=no', '--disable=import-error', tmp_path]
+            args = [
+                python3, '-m', 'pylint', '--output-format=parseable',
+                '--reports=no', '--disable=import-error', tmp_path
+            ]
             if 'pylint_config' in self.__options:
                 args.append('--rcfile=%s' % self.__options['pylint_config'])
             try:
@@ -525,8 +526,8 @@ class PythonLinter(Linter):
                 subprocess.check_output(args, stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError as cpe:
                 raise LinterException(
-                    str(cpe.output, encoding='utf-8').replace(tmp_path,
-                                                              filename),
+                    str(cpe.output, encoding='utf-8').replace(
+                        tmp_path, filename),
                     fixable=False)
 
             if self.__options.get('mypy', False):
@@ -616,6 +617,7 @@ class CustomLinter(Linter):
 
 class CommandLinter(Linter):
     '''Runs a custom command as linter.'''
+
     # pylint: disable=R0903
 
     def __init__(self, options: Optional[Mapping[Text, Any]] = None) -> None:
@@ -639,8 +641,8 @@ class CommandLinter(Linter):
                     logging.debug('lint_command: Running %s', args)
                     subprocess.check_output(args, stderr=subprocess.STDOUT)
                 except subprocess.CalledProcessError as cpe:
-                    raise LinterException(str(cpe.output, encoding='utf-8'),
-                                          fixable=False)
+                    raise LinterException(
+                        str(cpe.output, encoding='utf-8'), fixable=False)
 
             with open(tmp.name, 'rb') as tmp_in:
                 return tmp_in.read(), ['command']
@@ -653,7 +655,7 @@ class CommandLinter(Linter):
 
     @property
     def name(self) -> Text:
-        return 'command (%s)' % (self.__options.get('commands', []),)
+        return 'command (%s)' % (self.__options.get('commands', []), )
 
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

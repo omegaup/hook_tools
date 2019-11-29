@@ -24,7 +24,7 @@ RUN (cd /nvm && git checkout `git describe --abbrev=0 --tags`)
 RUN (. /nvm/nvm.sh && nvm install 12.12.0)
 ENV PATH="/bin/versions/node/v12.12.0/bin:${PATH}"
 RUN npm install -g yarn
-RUN yarn global add prettier@1.18.2
+RUN yarn global add prettier@1.19.1
 
 RUN mkdir -p /src
 WORKDIR /src
