@@ -35,4 +35,5 @@ ENV LANG=en_US.UTF-8
 RUN mkdir -p /hook_tools
 ADD ./ /hook_tools
 
+USER 1000
 ENTRYPOINT ["/usr/bin/python3", "/hook_tools/lint.py"]
