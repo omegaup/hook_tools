@@ -212,6 +212,35 @@ class JavaScriptLinter(Linter):
         return 'javascript'
 
 
+class TypeScriptLinter(Linter):
+    '''Runs prettier against |files|.'''
+
+    # pylint: disable=R0903
+
+    def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
+        super().__init__()
+        self.__options = options or {}
+
+    def run_one(self, filename: Text,
+                contents: bytes) -> Tuple[bytes, Sequence[Text]]:
+        try:
+            return (_lint_prettier(contents, filename),
+                    ['typescript'])
+        except subprocess.CalledProcessError as cpe:
+            raise LinterException(
+                str(b'\n'.join(cpe.output.split(b'\n')[1:]), encoding='utf-8'))
+
+    def run_all(
+            self, filenames: Sequence[Text],
+            contents_callback: Callable[[Text], bytes]
+    ) -> Tuple[Mapping[Text, bytes], Mapping[Text, bytes], Sequence[Text]]:
+        return {}, {}, []
+
+    @property
+    def name(self) -> Text:
+        return 'typescript'
+
+
 class WhitespaceLinter(Linter):
     '''Removes annoying superfluous whitespace.'''
     # pylint: disable=R0903

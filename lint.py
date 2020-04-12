@@ -28,6 +28,7 @@ LinterFactory = Callable[..., linters.Linter]
 _LINTER_MAPPING: Dict[Text, LinterFactory] = {
     'whitespace': linters.WhitespaceLinter,
     'javascript': linters.JavaScriptLinter,
+    'typescript': linters.TypeScriptLinter,
     'html': linters.HTMLLinter,
     'vue': linters.VueLinter,
     'php': linters.PHPLinter,
