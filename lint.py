@@ -76,9 +76,9 @@ def _run_linter_all(args: argparse.Namespace, linter: linters.Linter,
                                                             filename))
     except linters.LinterException as lex:
         print('Files %s%s%s lint failed:\n%s' %
-              (git_tools.COLORS.FAIL, ', '.join(
-                  [filename for filename in files]), git_tools.COLORS.NORMAL,
-               lex.message), file=sys.stderr)
+              (git_tools.COLORS.FAIL, ', '.join(files),
+               git_tools.COLORS.NORMAL, lex.message),
+              file=sys.stderr)
         return [(filename, lex.fixable) for filename in files]
 
     result: List[Tuple[Optional[Text], bool]] = []

@@ -145,7 +145,7 @@ def _get_changed_files(commits: List[Text]) -> Iterator[bytes]:
             idx += 2
             continue
         src = tokens[idx + 1]
-        if status in ('C', 'R'):
+        if status in (b'C', b'R'):
             dest = tokens[idx + 2]
             idx += 3
             yield dest
