@@ -98,7 +98,7 @@ class TestLinters(unittest.TestCase):
         new_contents, violations = linter.run_one(
             'test.vue', b'<template>\n<b></b>\n</template>\n')
         self.assertEqual(new_contents,
-                         b'<template>\n  <strong></strong>\n</template>\n')
+                         b'<template>\n  <b></b>\n</template>\n')
         self.assertEqual(violations, ['vue'])
 
     @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
@@ -113,8 +113,8 @@ class TestLinters(unittest.TestCase):
             b'<body>\n<input/></body></html>\n')
         self.assertEqual(
             new_contents,
-            b'<!DOCTYPE html>\n<html>\n<head>\n  <title></title>\n</head>\n'
-            b'<body>\n  <input>\n</body>\n</html>\n')
+            b'<!DOCTYPE html>\n<html>\n  <head>\n    <title></title>\n'
+            b'  </head>\n  <body>\n    <input />\n  </body>\n</html>\n')
         self.assertEqual(violations, ['html'])
 
     @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
