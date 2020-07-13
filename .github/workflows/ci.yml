@@ -7,7 +7,7 @@ on:
       - master
 
 jobs:
-  php:
+  ci:
     runs-on: ubuntu-latest
 
     steps:
