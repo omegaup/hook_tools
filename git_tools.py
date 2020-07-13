@@ -336,7 +336,8 @@ def _is_single_commit_pushed(args: argparse.Namespace) -> bool:
 
 def attempt_automatic_fixes(scriptname: Text,
                             args: argparse.Namespace,
-                            files: Optional[Iterable[Text]] = None) -> bool:
+                            files: Optional[Iterable[Text]] = None,
+                            pre_upload: bool = False) -> bool:
     '''Attempts to automatically fix any fixable errors.'''
     if sys.stdin.closed or not sys.stdin.isatty():
         # There is no one to ask.
@@ -352,6 +353,10 @@ def attempt_automatic_fixes(scriptname: Text,
                                     'status', '--porcelain']).strip():
         # The fix failed?
         return False
+    if pre_upload:
+        continue_message = 'please run the `git push` command again.'
+    else:
+        continue_message = 'ready to upload.'
     if not prompt('Want to also commit the fixes?'):
         # Fixes succeeded, even if they are not committed yet.
         print('Files written to working directory. '
@@ -367,8 +372,9 @@ def attempt_automatic_fixes(scriptname: Text,
         else:
             commit_params.append('--all')
         subprocess.check_call(commit_params)
-        print('%sPrevious commit reused, ready to upload.%s' %
-              (COLORS.OKGREEN, COLORS.NORMAL), file=sys.stderr)
+        print('%sPrevious commit reused, %s%s' %
+              (COLORS.OKGREEN, continue_message, COLORS.NORMAL),
+              file=sys.stderr)
     else:
         commit_params = ['/usr/bin/git', 'commit',
                          '-m', 'Fixed %s lints' % scriptname]
@@ -378,8 +384,9 @@ def attempt_automatic_fixes(scriptname: Text,
         else:
             commit_params.append('--all')
         subprocess.check_call(commit_params)
-        print('%sCommitted fixes, ready to upload.%s' %
-              (COLORS.OKGREEN, COLORS.NORMAL), file=sys.stderr)
+        print('%sCommitted fixes, %s%s' %
+              (COLORS.OKGREEN, continue_message, COLORS.NORMAL),
+              file=sys.stderr)
     return True
 
 

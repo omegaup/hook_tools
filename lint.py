@@ -181,6 +181,10 @@ def main() -> None:
         tool_description='lints a project',
         extra_arguments=[
             git_tools.Argument(
+                '--pre-upload',
+                action='store_true',
+                help='Mark this as being run from within a pre-upload hook'),
+            git_tools.Argument(
                 '--linters', help='Comma-separated subset of linters to run'),
         ])
     if not args.files:
@@ -228,7 +232,8 @@ def main() -> None:
                   file=sys.stderr)
         elif validate_only:
             if git_tools.attempt_automatic_fixes(sys.argv[0], args,
-                                                 file_violations):
+                                                 file_violations,
+                                                 pre_upload=args.pre_upload):
                 sys.exit(1)
             print('%sLinter validation errors.%s '
                   'Please run `%s` to fix them.' % (
