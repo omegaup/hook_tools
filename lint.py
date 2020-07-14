@@ -38,8 +38,10 @@ _LINTER_MAPPING: Dict[Text, LinterFactory] = {
 _ROOT = git_tools.root_dir()
 
 
-def _get_command_name() -> List[Text]:
+def _get_command_name(command_name: Optional[Text]) -> List[Text]:
     '''Returns the name of the command needed to invoke this script.'''
+    if command_name is not None:
+        return [command_name]
     if os.environ.get('DOCKER') == 'true':
         return [
             '/usr/bin/docker', 'run', '--rm', '-v', '"$PWD:/src"', '-v',
@@ -185,6 +187,11 @@ def main() -> None:
                 action='store_true',
                 help='Mark this as being run from within a pre-upload hook'),
             git_tools.Argument(
+                '--command-name',
+                default=None,
+                type=str,
+                help='Override the command name to execute this'),
+            git_tools.Argument(
                 '--linters', help='Comma-separated subset of linters to run'),
         ])
     if not args.files:
@@ -236,10 +243,11 @@ def main() -> None:
                                                  pre_upload=args.pre_upload):
                 sys.exit(1)
             print('%sLinter validation errors.%s '
-                  'Please run `%s` to fix them.' % (
-                      git_tools.COLORS.FAIL, git_tools.COLORS.NORMAL,
-                      git_tools.get_fix_commandline(_get_command_name(), args,
-                                                    file_violations)),
+                  'Please run `%s` to fix them.' %
+                  (git_tools.COLORS.FAIL, git_tools.COLORS.NORMAL,
+                   git_tools.get_fix_commandline(
+                       _get_command_name(args.command_name), args,
+                       file_violations)),
                   file=sys.stderr)
         else:
             print('Files written to working directory. '
