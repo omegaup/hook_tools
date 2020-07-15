@@ -6,9 +6,9 @@
 from __future__ import print_function
 
 import argparse
+import concurrent.futures
 import json
 import logging
-import multiprocessing
 import os.path
 import pipes
 import re
@@ -126,11 +126,16 @@ def _run_linter(args: argparse.Namespace, linter: linters.Linter,
     logging.debug('%s: Running with %d threads', linter.name, args.jobs)
     files = dict((filename, git_tools.file_contents(args, _ROOT, filename))
                  for filename in filenames)
-    results = multiprocessing.Pool(
-        args.jobs).starmap(_run_linter_one, [(linter, filename, contents,
-                                              validate_only)
-                                             for filename,
-                                             contents in files.items()])
+    with concurrent.futures.ThreadPoolExecutor(
+            max_workers=args.jobs) as executor:
+        futures = []
+        for filename, contents in files.items():
+            futures.append(
+                executor.submit(_run_linter_one, linter, filename, contents,
+                                validate_only))
+        results = [
+            f.result() for f in concurrent.futures.as_completed(futures)
+        ]
     results.extend(_run_linter_all(args, linter, filenames, validate_only))
     return (set(violation for violation, _ in results
                 if violation is not None),
