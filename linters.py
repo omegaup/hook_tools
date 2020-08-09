@@ -101,7 +101,15 @@ def _lint_javascript(filename: Text,
 
         for args in commands:
             logging.debug('lint_javascript: Running %s', args)
-            subprocess.check_output(args, stderr=subprocess.STDOUT)
+            try:
+                logging.debug('lint_command: Running %s', args)
+                subprocess.run(args,
+                               check=True,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT,
+                               text=True)
+            except subprocess.CalledProcessError as cpe:
+                raise LinterException(cpe.output, fixable=False)
 
         with open(js_out.name, 'rb') as js_in:
             return header + js_in.read()
@@ -115,22 +123,20 @@ def _lint_html(contents: bytes, strict: bool) -> bytes:
         os.path.join(git_tools.HOOK_TOOLS_ROOT, 'tidy.txt')
     ]
     logging.debug('lint_html: Running %s', args)
-    with subprocess.Popen(
-            args,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
-        new_contents, stderr = proc.communicate(contents)
-        retcode = proc.wait()
+    result = subprocess.run(args,
+                            input=contents,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            check=False,
+                            cwd=git_tools.HOOK_TOOLS_ROOT)
 
-        if retcode == 0:
-            return new_contents
-        if retcode == 1 and not strict:
-            # |retcode| == 1 means that there were warnings.
-            return new_contents
+    if result.returncode == 0:
+        return result.stdout
+    if result.returncode == 1 and not strict:
+        # |result.returncode| == 1 means that there were warnings.
+        return result.stdout
 
-        raise LinterException(stderr.decode('utf-8', errors='replace'))
+    raise LinterException(result.stderr.decode('utf-8', errors='replace'))
 
 
 def _lint_prettier(contents: bytes, filename: Text) -> bytes:
@@ -141,18 +147,17 @@ def _lint_prettier(contents: bytes, filename: Text) -> bytes:
         '--stdin-filepath=%s' % filename
     ]
     logging.debug('lint_vue: Running %s', args)
-    with subprocess.Popen(
-            args,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
-        new_contents, stderr = proc.communicate(contents)
+    result = subprocess.run(args,
+                            input=contents,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            check=False,
+                            cwd=git_tools.HOOK_TOOLS_ROOT)
 
-        if proc.wait() != 0:
-            raise LinterException(stderr.decode('utf-8', errors='replace'))
+    if result.returncode != 0:
+        raise LinterException(result.stderr.decode('utf-8', errors='replace'))
 
-        return new_contents
+    return result.stdout
 
 
 class Linter:
@@ -454,47 +459,44 @@ class PHPLinter(Linter):
         args = ([_which('phpcbf')] + self.__common_args
                 + ['--stdin-path=%s' % filename])
         logging.debug('lint_php: Running %s', args)
-        with subprocess.Popen(
-                args,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
-            new_contents, stderr = proc.communicate(contents)
-            retcode = proc.wait()
+        result = subprocess.run(args,
+                                input=contents,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                check=False,
+                                cwd=git_tools.HOOK_TOOLS_ROOT)
 
-            if retcode != 0:
-                logging.debug('lint_php: Return code %d, stderr = %s', retcode,
-                              stderr)
-                if not new_contents:
-                    # phpcbf returns 1 if there was no change to the file. If
-                    # there was an actual error, there won't be anything in
-                    # stdout.
-                    raise LinterException(stderr.decode('utf-8'))
+        if result.returncode != 0:
+            logging.debug('lint_php: Return code %d, stderr = %s',
+                          result.returncode, result.stderr)
+            if not result.stdout:
+                # phpcbf returns 1 if there was no change to the file. If there
+                # was an actual error, there won't be anything in stdout.
+                raise LinterException(result.stderr.decode('utf-8'))
 
-            if new_contents != contents:
-                # If phpcbf was able to fix anything, let's go with that
-                # instead of running phpcs. Otherwise, phpcs will return
-                # non-zero and the suggestions won't be used.
-                return new_contents, ['php']
+        new_contents = result.stdout
+
+        if new_contents != contents:
+            # If phpcbf was able to fix anything, let's go with that instead of
+            # running phpcs. Otherwise, phpcs will return non-zero and the
+            # suggestions won't be used.
+            return new_contents, ['php']
 
         # Even if phpcbf didn't find anything, phpcs might.
         args = ([_which('phpcs'), '-n', '-s', '-q'] + self.__common_args
                 + ['--stdin-path=%s' % filename])
         logging.debug('lint_php: Running %s', args)
-        with subprocess.Popen(
-                args,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=git_tools.HOOK_TOOLS_ROOT) as proc:
-            stdout, _ = proc.communicate(contents)
-            retcode = proc.wait()
+        result = subprocess.run(args,
+                                input=contents,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                check=False,
+                                cwd=git_tools.HOOK_TOOLS_ROOT)
 
-            if retcode != 0:
-                logging.debug('lint_php: Return code %d, stdout = %s', retcode,
-                              stdout)
-                raise LinterException(stdout.decode('utf-8').strip())
+        if result.returncode != 0:
+            logging.debug('lint_php: Return code %d, stdout = %s',
+                          result.returncode, result.stdout)
+            raise LinterException(result.stdout.decode('utf-8').strip())
 
         return new_contents, ['php']
 
@@ -535,12 +537,14 @@ class PythonLinter(Linter):
                 break
             try:
                 logging.debug('lint_python: Running %s', args)
-                subprocess.check_output(args, stderr=subprocess.STDOUT)
+                subprocess.run(args,
+                               check=True,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT,
+                               text=True)
             except subprocess.CalledProcessError as cpe:
-                raise LinterException(
-                    str(cpe.output, encoding='utf-8').replace(
-                        tmp_path, filename),
-                    fixable=False)
+                raise LinterException(cpe.output.replace(tmp_path, filename),
+                                      fixable=False)
 
             # We need to disable import-error since the file won't be checked
             # in the repository, but in a temporary directory.
@@ -552,12 +556,14 @@ class PythonLinter(Linter):
                 args.append('--rcfile=%s' % self.__options['pylint_config'])
             try:
                 logging.debug('lint_python: Running %s', args)
-                subprocess.check_output(args, stderr=subprocess.STDOUT)
+                subprocess.run(args,
+                               check=True,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT,
+                               text=True)
             except subprocess.CalledProcessError as cpe:
-                raise LinterException(
-                    str(cpe.output, encoding='utf-8').replace(
-                        tmp_path, filename),
-                    fixable=False)
+                raise LinterException(cpe.output.replace(tmp_path, filename),
+                                      fixable=False)
 
             if self.__options.get('mypy', False):
                 args = [
@@ -565,10 +571,15 @@ class PythonLinter(Linter):
                 ]
                 try:
                     logging.debug('lint_python: Running %s', args)
-                    subprocess.check_output(args, stderr=subprocess.STDOUT)
+                    subprocess.run(args,
+                                   check=True,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT,
+                                   text=True)
                 except subprocess.CalledProcessError as cpe:
                     raise LinterException(
-                        str(cpe.output, encoding='utf-8'), fixable=False)
+                        cpe.output.replace(tmp_path, filename),
+                        fixable=False)
 
             return contents, []
 
@@ -668,10 +679,13 @@ class CommandLinter(Linter):
             for args in commands:
                 try:
                     logging.debug('lint_command: Running %s', args)
-                    subprocess.check_output(args, stderr=subprocess.STDOUT)
+                    subprocess.run(args,
+                                   check=True,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT,
+                                   text=True)
                 except subprocess.CalledProcessError as cpe:
-                    raise LinterException(
-                        str(cpe.output, encoding='utf-8'), fixable=False)
+                    raise LinterException(cpe.output, fixable=False)
 
             with open(tmp.name, 'rb') as tmp_in:
                 return tmp_in.read(), ['command']

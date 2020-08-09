@@ -22,6 +22,7 @@ RUN python3 -m pip install \
         Jinja2==2.11.2 \
         pyparsing==2.4.7 \
         mypy==0.770
+RUN mkdir -p /.pylint.d && chown 1000:1000 /.pylint.d
 
 # PHP support.
 RUN curl --location \
@@ -40,6 +41,7 @@ RUN (. /nvm/nvm.sh && nvm install v12.18.2 ; nvm use --delete-prefix v12.18.2)
 ENV PATH="/usr/bin/versions/node/v12.18.2/bin:${PATH}"
 RUN npm install -g yarn
 RUN yarn global add prettier@2.0.5
+RUN mkdir -p /.yarn /.cache && chown 1000:1000 /.yarn /.cache
 
 RUN mkdir -p /src
 WORKDIR /src
