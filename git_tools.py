@@ -70,10 +70,12 @@ def get_explicit_file_list(commits: List[Text]) -> Sequence[Text]:
     # Otherwise let git-rev-parse let us know what are revisions and we treat
     # everything following the first non-revision as a file.
     try:
-        commit_refs_output = subprocess.check_output(
+        commit_refs_output = subprocess.run(
             ['/usr/bin/git', 'rev-parse', '--revs-only'] + commits,
-            universal_newlines=True,
-            cwd=root_dir()).strip()
+            text=True,
+            check=True,
+            stdout=subprocess.PIPE,
+            cwd=root_dir()).stdout.strip()
         if not commit_refs_output:
             commit_refs: List[Text] = []
         else:
@@ -111,8 +113,10 @@ def _validate_args(args: argparse.Namespace, files: Sequence[Text]) -> bool:
 def _get_all_files() -> Iterator[bytes]:
     '''Returns the list of all files at HEAD (and maybe in the index).'''
 
-    for path in subprocess.check_output(['/usr/bin/git', 'ls-files', '-z'],
-                                        cwd=root_dir()).split(b'\x00'):
+    for path in subprocess.run(['/usr/bin/git', 'ls-files', '-z'],
+                               check=True,
+                               stdout=subprocess.PIPE,
+                               cwd=root_dir()).stdout.split(b'\x00'):
         if os.path.isfile(path):
             yield path
 
@@ -131,7 +135,10 @@ def _get_changed_files(commits: List[Text]) -> Iterator[bytes]:
             return
         cmd = ['/usr/bin/git', 'diff-tree', '-r', '-z',
                '--diff-filter=d'] + commits
-    tokens = subprocess.check_output(cmd, cwd=root_dir()).split(b'\x00')
+    tokens = subprocess.run(cmd,
+                            check=True,
+                            stdout=subprocess.PIPE,
+                            cwd=root_dir()).stdout.split(b'\x00')
     idx = 0
     while idx < len(tokens) - 1:
         match = GIT_DIFF_TREE_PATTERN.match(tokens[idx])
@@ -207,15 +214,20 @@ def file_contents(args: argparse.Namespace, root: Text,
         with open(os.path.join(root, filename), 'rb') as working_dir_file:
             return working_dir_file.read()
     else:
-        return subprocess.check_output(
-            ['/usr/bin/git', 'show', '%s:%s' % (args.commits[-1], filename)])
+        return subprocess.run(
+            ['/usr/bin/git', 'show',
+             '%s:%s' % (args.commits[-1], filename)],
+            check=True,
+            stdout=subprocess.PIPE,
+            cwd=root).stdout
 
 
 def root_dir() -> Text:
     '''Returns the top-level directory of the project.'''
-    return subprocess.check_output(
-        ['/usr/bin/git', 'rev-parse', '--show-toplevel'],
-        universal_newlines=True).strip()
+    return subprocess.run(['/usr/bin/git', 'rev-parse', '--show-toplevel'],
+                          text=True,
+                          check=True,
+                          stdout=subprocess.PIPE).stdout.strip()
 
 
 def parse_arguments(
@@ -329,9 +341,15 @@ def _is_single_commit_pushed(args: argparse.Namespace) -> bool:
     '''Returns whether a single commit is being pushed.'''
     if len(args.commits) != 2:
         return False
-    return str(args.commits[0]) == subprocess.check_output(
-        ['/usr/bin/git', 'rev-parse', '%s^' % args.commits[1]],
-        universal_newlines=True).strip()
+    return str(args.commits[0]) == subprocess.run(
+        [
+            '/usr/bin/git',
+            'rev-parse',
+            '%s^' % args.commits[1],
+        ],
+        text=True,
+        check=True,
+        stdout=subprocess.PIPE).stdout.strip()
 
 
 def attempt_automatic_fixes(scriptname: Text,
@@ -349,8 +367,9 @@ def attempt_automatic_fixes(scriptname: Text,
     # cannot use check_call() for that reason. We also always use the
     # in-container version of the invocation.
     subprocess.call(_get_fix_args([scriptname], args, files))
-    if not subprocess.check_output(['/usr/bin/git',
-                                    'status', '--porcelain']).strip():
+    if not subprocess.run(['/usr/bin/git', 'status', '--porcelain'],
+                          check=True,
+                          stdout=subprocess.PIPE).stdout.strip():
         # The fix failed?
         return False
     if pre_upload:
@@ -371,7 +390,7 @@ def attempt_automatic_fixes(scriptname: Text,
             commit_params.extend(files)
         else:
             commit_params.append('--all')
-        subprocess.check_call(commit_params)
+        subprocess.run(commit_params, check=True)
         print('%sPrevious commit reused, %s%s' %
               (COLORS.OKGREEN, continue_message, COLORS.NORMAL),
               file=sys.stderr)
@@ -383,7 +402,7 @@ def attempt_automatic_fixes(scriptname: Text,
             commit_params.extend(files)
         else:
             commit_params.append('--all')
-        subprocess.check_call(commit_params)
+        subprocess.run(commit_params, check=True)
         print('%sCommitted fixes, %s%s' %
               (COLORS.OKGREEN, continue_message, COLORS.NORMAL),
               file=sys.stderr)
