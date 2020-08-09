@@ -72,7 +72,7 @@ def get_explicit_file_list(commits: List[Text]) -> Sequence[Text]:
     try:
         commit_refs_output = subprocess.run(
             ['/usr/bin/git', 'rev-parse', '--revs-only'] + commits,
-            text=True,
+            universal_newlines=True,
             check=True,
             stdout=subprocess.PIPE,
             cwd=root_dir()).stdout.strip()
@@ -225,7 +225,7 @@ def file_contents(args: argparse.Namespace, root: Text,
 def root_dir() -> Text:
     '''Returns the top-level directory of the project.'''
     return subprocess.run(['/usr/bin/git', 'rev-parse', '--show-toplevel'],
-                          text=True,
+                          universal_newlines=True,
                           check=True,
                           stdout=subprocess.PIPE).stdout.strip()
 
@@ -347,7 +347,7 @@ def _is_single_commit_pushed(args: argparse.Namespace) -> bool:
             'rev-parse',
             '%s^' % args.commits[1],
         ],
-        text=True,
+        universal_newlines=True,
         check=True,
         stdout=subprocess.PIPE).stdout.strip()
 

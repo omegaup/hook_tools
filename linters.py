@@ -107,7 +107,7 @@ def _lint_javascript(filename: Text,
                                check=True,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT,
-                               text=True)
+                               universal_newlines=True)
             except subprocess.CalledProcessError as cpe:
                 raise LinterException(cpe.output, fixable=False)
 
@@ -541,7 +541,7 @@ class PythonLinter(Linter):
                                check=True,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT,
-                               text=True)
+                               universal_newlines=True)
             except subprocess.CalledProcessError as cpe:
                 raise LinterException(cpe.output.replace(tmp_path, filename),
                                       fixable=False)
@@ -560,7 +560,7 @@ class PythonLinter(Linter):
                                check=True,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT,
-                               text=True)
+                               universal_newlines=True)
             except subprocess.CalledProcessError as cpe:
                 raise LinterException(cpe.output.replace(tmp_path, filename),
                                       fixable=False)
@@ -575,7 +575,7 @@ class PythonLinter(Linter):
                                    check=True,
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT,
-                                   text=True)
+                                   universal_newlines=True)
                 except subprocess.CalledProcessError as cpe:
                     raise LinterException(
                         cpe.output.replace(tmp_path, filename),
@@ -683,7 +683,7 @@ class CommandLinter(Linter):
                                    check=True,
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT,
-                                   text=True)
+                                   universal_newlines=True)
                 except subprocess.CalledProcessError as cpe:
                     raise LinterException(cpe.output, fixable=False)
 
