@@ -5,13 +5,17 @@ MAINTAINER Luis Héctor Chávez <lhchavez@omegaup.com>
 RUN ln -snf /usr/share/zoneinfo/Etc/UTC /etc/localtime && echo Etc/UTC > /etc/timezone
 RUN apt-get update -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        curl \
         git \
-        python3-six \
+        locales \
+        php-pear \
+        php7.4-cli \
+        php7.4-json \
+        php7.4-mbstring \
+        php7.4-xml \
         python3-pip \
         python3-setuptools \
-        php-pear \
-        curl \
-        locales
+        python3-six
 RUN /usr/sbin/locale-gen en_US.UTF-8 && /usr/sbin/update-locale LANG=en_US.UTF-8
 
 # Python support.
