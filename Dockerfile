@@ -30,11 +30,11 @@ RUN mkdir -p /.pylint.d && chown 1000:1000 /.pylint.d
 
 # PHP support.
 RUN curl --location \
-        https://github.com/squizlabs/PHP_CodeSniffer/releases/download/3.5.5/phpcbf.phar \
+        https://github.com/squizlabs/PHP_CodeSniffer/releases/download/3.5.6/phpcbf.phar \
         --output /usr/bin/phpcbf && \
     chmod 755 /usr/bin/phpcbf
 RUN curl --location \
-        https://github.com/squizlabs/PHP_CodeSniffer/releases/download/3.5.5/phpcs.phar \
+        https://github.com/squizlabs/PHP_CodeSniffer/releases/download/3.5.6/phpcs.phar \
         --output /usr/bin/phpcs && \
     chmod 755 /usr/bin/phpcs
 
