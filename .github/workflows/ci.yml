@@ -27,4 +27,4 @@ jobs:
             --volume "${PWD}:/src" \
             --entrypoint /bin/bash \
             omegaup/hook_tools \
-            /src/test.sh
+            /src/test.sh --diagnostics-output=github

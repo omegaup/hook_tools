@@ -7,6 +7,7 @@ from __future__ import print_function
 
 import argparse
 import concurrent.futures
+import enum
 import json
 import logging
 import os.path
@@ -38,6 +39,12 @@ _LINTER_MAPPING: Dict[Text, LinterFactory] = {
 _ROOT = git_tools.root_dir()
 
 
+class DiagnosticsOutput(enum.Enum):
+    '''Controls the format in which diagnostic messages are displayed.'''
+    STDERR = 'stderr'
+    GITHUB = 'github'
+
+
 def _get_command_name(command_name: Optional[Text]) -> List[Text]:
     '''Returns the name of the command needed to invoke this script.'''
     if command_name is not None:
@@ -50,16 +57,15 @@ def _get_command_name(command_name: Optional[Text]) -> List[Text]:
     return [pipes.quote(sys.argv[0])]
 
 
-def _run_linter_one(linter: linters.Linter, filename: Text, contents: bytes,
-                    validate_only: bool) -> Tuple[Optional[Text], bool]:
+def _run_linter_one(
+        linter: linters.Linter, filename: Text, contents: bytes,
+        validate_only: bool,
+        diagnostics_output: DiagnosticsOutput) -> Tuple[Optional[Text], bool]:
     '''Runs the linter against one file.'''
     try:
         new_contents, violations = linter.run_one(filename, contents)
     except linters.LinterException as lex:
-        print('File %s%s%s lint failed:\n%s' %
-              (git_tools.COLORS.FAIL, filename,
-               git_tools.COLORS.NORMAL, lex.message),
-              file=sys.stderr)
+        _report_linter_exception(filename, lex, diagnostics_output)
         return filename, lex.fixable
 
     if contents == new_contents:
@@ -69,18 +75,17 @@ def _run_linter_one(linter: linters.Linter, filename: Text, contents: bytes,
                                   violations, True)
 
 
-def _run_linter_all(args: argparse.Namespace, linter: linters.Linter,
-                    files: Sequence[Text], validate_only: bool
-                    ) -> Sequence[Tuple[Optional[Text], bool]]:
+def _run_linter_all(
+        args: argparse.Namespace, linter: linters.Linter,
+        files: Sequence[Text], validate_only: bool,
+        diagnostics_output: DiagnosticsOutput
+) -> Sequence[Tuple[Optional[Text], bool]]:
     try:
         new_file_contents, original_contents, violations = linter.run_all(
-            files, lambda filename: git_tools.file_contents(args, _ROOT,
-                                                            filename))
+            files,
+            lambda filename: git_tools.file_contents(args, _ROOT, filename))
     except linters.LinterException as lex:
-        print('Files %s%s%s lint failed:\n%s' %
-              (git_tools.COLORS.FAIL, ', '.join(files),
-               git_tools.COLORS.NORMAL, lex.message),
-              file=sys.stderr)
+        _report_linter_exception(', '.join(files), lex, diagnostics_output)
         return [(filename, lex.fixable) for filename in files]
 
     result: List[Tuple[Optional[Text], bool]] = []
@@ -117,12 +122,55 @@ def _report_linter_results(filename: Text, new_contents: bytes, validate: bool,
     return filename, fixable
 
 
-def _run_linter(args: argparse.Namespace, linter: linters.Linter,
-                filenames: Sequence[Text],
-                validate_only: bool) -> Tuple[Set[Text], bool]:
+def _report_linter_exception(filename: Text, lex: linters.LinterException,
+                             diagnostics_output: DiagnosticsOutput) -> None:
+    if diagnostics_output == DiagnosticsOutput.GITHUB:
+        for diagnostic in lex.diagnostics:
+            location = [f'file={diagnostic.filename}']
+            if diagnostic.lineno is not None:
+                location.append(f'line={diagnostic.lineno}')
+            if diagnostic.col is not None:
+                location.append(f'col={diagnostic.col}')
+            print((f'::{diagnostic.level} '
+                   f'{",".join(location)}::{diagnostic.message}\n'),
+                  end='')
+        return
+    message_lines: List[str] = []
+    if not lex.diagnostics:
+        message_lines.append(
+            'File '
+            f'{git_tools.COLORS.FAIL}{filename}{git_tools.COLORS.NORMAL} '
+            'lint failed:')
+        message_lines.append(lex.message)
+    for diagnostic in lex.diagnostics:
+        location = [f'{git_tools.COLORS.FAIL}{diagnostic.filename}'
+                    f'{git_tools.COLORS.NORMAL}']
+        if diagnostic.lineno is not None:
+            location.append(str(diagnostic.lineno))
+            if diagnostic.col is not None:
+                location.append(str(diagnostic.col))
+        message_lines.append(f'{":".join(location)}: {diagnostic.message}')
+        if diagnostic.line is not None:
+            message_lines.append(f'    {diagnostic.line}')
+            if diagnostic.col is not None:
+                prefix = re.sub(r'[^\t]', ' ',
+                                diagnostic.line[:diagnostic.col - 1])
+                if diagnostic.col_end is not None:
+                    arrow = '^' * (diagnostic.col_end - diagnostic.col)
+                else:
+                    arrow = '^'
+                message_lines.append(f'    {prefix}{arrow}')
+    message_lines.append('')
+    print('\n'.join(message_lines), end='', file=sys.stderr)
+
+
+def _run_linter(
+        args: argparse.Namespace, linter: linters.Linter,
+        filenames: Sequence[Text], validate_only: bool,
+        diagnostics_output: DiagnosticsOutput) -> Tuple[Set[Text], bool]:
     '''Runs the linter against all files.'''
-    logging.debug('%s: Files to consider: %s',
-                  linter.name, ' '.join(filenames))
+    logging.debug('%s: Files to consider: %s', linter.name,
+                  ' '.join(filenames))
     logging.debug('%s: Running with %d threads', linter.name, args.jobs)
     files = dict((filename, git_tools.file_contents(args, _ROOT, filename))
                  for filename in filenames)
@@ -132,11 +180,13 @@ def _run_linter(args: argparse.Namespace, linter: linters.Linter,
         for filename, contents in files.items():
             futures.append(
                 executor.submit(_run_linter_one, linter, filename, contents,
-                                validate_only))
+                                validate_only, diagnostics_output))
         results = [
             f.result() for f in concurrent.futures.as_completed(futures)
         ]
-    results.extend(_run_linter_all(args, linter, filenames, validate_only))
+    results.extend(
+        _run_linter_all(args, linter, filenames, validate_only,
+                        diagnostics_output))
     return (set(violation for violation, _ in results
                 if violation is not None),
             any(fixable for _, fixable in results))
@@ -198,6 +248,12 @@ def main() -> None:
                 help='Override the command name to execute this'),
             git_tools.Argument(
                 '--linters', help='Comma-separated subset of linters to run'),
+            git_tools.Argument(
+                '--diagnostics-output',
+                default=DiagnosticsOutput.STDERR,
+                type=DiagnosticsOutput,
+                choices=DiagnosticsOutput.__members__.values(),
+                help='How to display diagnostics provided by the linters.'),
         ])
     if not args.files:
         return
@@ -233,7 +289,7 @@ def main() -> None:
             if all(not r.match(filename) for r in blacklist)]
         local_violations, local_fixable = _run_linter(
             args, linter(options), filtered_files,
-            validate_only)
+            validate_only, args.diagnostics_output)
         file_violations |= local_violations
         fixable |= local_fixable
 
