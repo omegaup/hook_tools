@@ -2,8 +2,8 @@
 
 from __future__ import print_function
 
-from abc import ABCMeta, abstractmethod
 from html.parser import HTMLParser
+import dataclasses
 import importlib.util
 import logging
 import os
@@ -13,8 +13,8 @@ import shlex
 import subprocess
 import sys
 import tempfile
-from typing import (Any, Callable, Dict, List, Mapping, Optional, Text,
-                    Sequence, Tuple)
+from typing import (Any, Callable, Dict, List, Mapping, NamedTuple, Optional,
+                    Text, Sequence, Tuple)
 
 if __name__ == "__main__" and __package__ is None:
     sys.path.append(os.path.dirname(sys.path[0]))
@@ -42,15 +42,50 @@ def _which(program: Text) -> Text:
 
 
 _TIDY_PATH = os.path.join(git_tools.HOOK_TOOLS_ROOT, 'tidy')
+_PRETTIER_RE = re.compile(r'^(?:[^\s:]+\s*)?[^\s:]+: (.*) \((\d+):(\d+)\)\s*$')
+
+Options = Mapping[str, Any]
+ContentsCallback = Callable[[str], bytes]
+
+
+class SingleResult(NamedTuple):
+    '''The result of Linter.run_one().'''
+    contents: bytes
+    violations: Sequence[str] = ()
+
+
+class MultipleResults(NamedTuple):
+    '''The result of Linter.run_all().'''
+    new_contents: Mapping[str, bytes]
+    original_contents: Mapping[str, bytes]
+    violations: Sequence[str] = ()
+
+
+@dataclasses.dataclass
+class Diagnostic:
+    '''A diagnostic message.'''
+    message: str
+    filename: str
+    line: Optional[str] = None
+    lineno: Optional[int] = None
+    col: Optional[int] = None
+    col_end: Optional[int] = None
+    level: str = 'error'
 
 
 class LinterException(Exception):
     '''A fatal exception during linting.'''
 
-    def __init__(self, message: Text, fixable: bool = True) -> None:
+    def __init__(
+            self,
+            message: Text,
+            fixable: bool = True,
+            diagnostics: Sequence[Diagnostic] = ()
+    ) -> None:
         super().__init__(message)
         self.__message = message
         self.__fixable = fixable
+        self.__diagnostics = diagnostics
 
     @property
     def message(self) -> Text:
@@ -61,6 +96,11 @@ class LinterException(Exception):
     def fixable(self) -> bool:
         '''Whether this exception supports being fixed.'''
         return self.__fixable
+
+    @property
+    def diagnostics(self) -> Sequence[Diagnostic]:
+        '''Any diagnostics that this LinterException could have.'''
+        return self.__diagnostics
 
 
 def _custom_command(command: Text, filename: Text,
@@ -79,6 +119,7 @@ def _lint_javascript(filename: Text,
                      extra_commands: Optional[Sequence[Text]] = None) -> bytes:
     '''Runs prettier on |contents|.'''
 
+    lines = contents.decode('utf-8').split('\n')
     with tempfile.NamedTemporaryFile(suffix='.js') as js_out:
         # Keep the shebang unmodified.
         header = b''
@@ -100,16 +141,30 @@ def _lint_javascript(filename: Text,
         ]
 
         for args in commands:
-            logging.debug('lint_javascript: Running %s', args)
             try:
-                logging.debug('lint_command: Running %s', args)
+                logging.debug('lint_javascript: Running %s', args)
                 subprocess.run(args,
                                check=True,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT,
                                universal_newlines=True)
             except subprocess.CalledProcessError as cpe:
-                raise LinterException(cpe.output, fixable=False)
+                diagnostics: List[Diagnostic] = []
+                for line in cpe.output.strip().split('\n'):
+                    match = _PRETTIER_RE.match(line)
+                    if not match:
+                        continue
+                    diagnostics.append(
+                        Diagnostic(
+                            f'{match.group(1)}',
+                            filename=filename,
+                            lineno=int(match.group(2)),
+                            line=lines[int(match.group(2)) - 1].rstrip(),
+                            col=int(match.group(3)) or None,
+                        ))
+                raise LinterException('JavaScript lint errors',
+                                      fixable=False,
+                                      diagnostics=diagnostics)
 
         with open(js_out.name, 'rb') as js_in:
             return header + js_in.read()
@@ -155,7 +210,24 @@ def _lint_prettier(contents: bytes, filename: Text) -> bytes:
                             cwd=git_tools.HOOK_TOOLS_ROOT)
 
     if result.returncode != 0:
-        raise LinterException(result.stderr.decode('utf-8', errors='replace'))
+        lines = contents.decode('utf-8').split('\n')
+        diagnostics: List[Diagnostic] = []
+        for line in result.stderr.decode('utf-8',
+                                         errors='replace').strip().split('\n'):
+            match = _PRETTIER_RE.match(line)
+            if not match:
+                continue
+            diagnostics.append(
+                Diagnostic(
+                    f'{match.group(1)}',
+                    filename=filename,
+                    lineno=int(match.group(2)),
+                    line=lines[int(match.group(2)) - 1].rstrip(),
+                    col=int(match.group(3)) or None,
+                ))
+        raise LinterException('lint errors',
+                              fixable=False,
+                              diagnostics=diagnostics)
 
     return result.stdout
 
@@ -164,22 +236,21 @@ class Linter:
     '''An abstract Linter.'''
     # pylint: disable=R0903
 
-    __metaclass__ = ABCMeta
-
     def __init__(self) -> None:
         pass
 
-    @abstractmethod
-    def run_one(self, filename: Text,
-                contents: bytes) -> Tuple[bytes, Sequence[Text]]:
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
         '''Runs the linter against |contents|.'''
+        # pylint: disable=no-self-use
+        del filename  # unused
+        return SingleResult(contents)
 
-    @abstractmethod
-    def run_all(
-            self, filenames: Sequence[Text],
-            contents_callback: Callable[[Text], bytes]
-    ) -> Tuple[Mapping[Text, bytes], Mapping[Text, bytes], Sequence[Text]]:
+    def run_all(self, filenames: Sequence[str],
+                contents_callback: ContentsCallback) -> MultipleResults:
         '''Runs the linter against a subset of files.'''
+        # pylint: disable=no-self-use
+        del filenames, contents_callback  # unused
+        return MultipleResults(new_contents={}, original_contents={})
 
     @property
     def name(self) -> Text:
@@ -192,25 +263,19 @@ class JavaScriptLinter(Linter):
 
     # pylint: disable=R0903
 
-    def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
+    def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
         self.__options = options or {}
 
-    def run_one(self, filename: Text,
-                contents: bytes) -> Tuple[bytes, Sequence[Text]]:
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
         try:
-            return (_lint_javascript(filename, contents,
-                                     self.__options.get('extra_js_linters')),
-                    ['javascript'])
+            return SingleResult(
+                _lint_javascript(filename, contents,
+                                 self.__options.get('extra_js_linters')),
+                ['javascript'])
         except subprocess.CalledProcessError as cpe:
             raise LinterException(
                 str(b'\n'.join(cpe.output.split(b'\n')[1:]), encoding='utf-8'))
-
-    def run_all(
-            self, filenames: Sequence[Text],
-            contents_callback: Callable[[Text], bytes]
-    ) -> Tuple[Mapping[Text, bytes], Mapping[Text, bytes], Sequence[Text]]:
-        return {}, {}, []
 
     @property
     def name(self) -> Text:
@@ -222,24 +287,17 @@ class TypeScriptLinter(Linter):
 
     # pylint: disable=R0903
 
-    def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
+    def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
         self.__options = options or {}
 
-    def run_one(self, filename: Text,
-                contents: bytes) -> Tuple[bytes, Sequence[Text]]:
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
         try:
-            return (_lint_prettier(contents, filename),
-                    ['typescript'])
+            return SingleResult(_lint_prettier(contents, filename),
+                                ['typescript'])
         except subprocess.CalledProcessError as cpe:
             raise LinterException(
                 str(b'\n'.join(cpe.output.split(b'\n')[1:]), encoding='utf-8'))
-
-    def run_all(
-            self, filenames: Sequence[Text],
-            contents_callback: Callable[[Text], bytes]
-    ) -> Tuple[Mapping[Text, bytes], Mapping[Text, bytes], Sequence[Text]]:
-        return {}, {}, []
 
     @property
     def name(self) -> Text:
@@ -260,12 +318,11 @@ class WhitespaceLinter(Linter):
          br'\n\1'),
     ]
 
-    def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
+    def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
         self.__options = options or {}
 
-    def run_one(self, filename: Text,
-                contents: bytes) -> Tuple[bytes, Sequence[Text]]:
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
         '''Runs all validations against |files|.
 
         A validation consists of performing regex substitution against the
@@ -283,13 +340,7 @@ class WhitespaceLinter(Linter):
                 violations.append(error_string)
                 contents = replaced
 
-        return contents, violations
-
-    def run_all(
-            self, filenames: Sequence[Text],
-            contents_callback: Callable[[Text], bytes]
-    ) -> Tuple[Mapping[Text, bytes], Mapping[Text, bytes], Sequence[Text]]:
-        return {}, {}, []
+        return SingleResult(contents, violations)
 
     @property
     def name(self) -> Text:
@@ -308,29 +359,33 @@ class VueHTMLParser(HTMLParser):
         self._tags: List[Tuple[Text, List[Tuple[str, Optional[str]]], str,
                                Tuple[int, int], Tuple[int, int]]] = []
         self._id_linter_enabled = True
+        self.diagnostics: List[Diagnostic] = []
+        self._lines: List[str] = []
+        self._filename: str = ''
 
     def error(self, message: Text) -> None:
         raise LinterException(message)
 
     def parse(
-            self, contents: Text
+            self, contents: Text, filename: str
     ) -> Sequence[Tuple[Text, List[Tuple[str, Optional[str]]], Text, Text]]:
         '''Parses |contents| and returns the .vue-specific sections.'''
 
         self._stack = []
         self._tags = []
+        self._filename = filename
+        self._lines = contents.split('\n')
         self.feed(contents)
-
-        lines = contents.split('\n')
 
         sections = []
         for tag, attrs, starttag, start, end in self._tags:
             line_range = []
-            if len(lines[start[0]]) > len(starttag) + start[1]:
-                line_range.append(lines[start[0]][len(starttag) + start[1]:])
-            line_range += lines[start[0] + 1:end[0]]
+            if len(self._lines[start[0]]) > len(starttag) + start[1]:
+                line_range.append(self._lines[start[0]][len(starttag)
+                                                        + start[1]:])
+            line_range += self._lines[start[0] + 1:end[0]]
             if end[1] > 0:
-                line_range.append(lines[end[0]][:end[1]])
+                line_range.append(self._lines[end[0]][:end[1]])
             sections.append((tag, attrs, starttag, '\n'.join(line_range)))
         return sections
 
@@ -343,17 +398,26 @@ class VueHTMLParser(HTMLParser):
             return
         for name, _ in attrs:
             if name == 'id':
-                raise LinterException(
-                    ('Use of "id" attribute in .vue files is '
-                     'discouraged. Found one in line %d\n') % (line),
-                    fixable=False)
+                self.diagnostics.append(
+                    Diagnostic(
+                        'Use of "id" attribute in .vue files is discouraged.',
+                        filename=self._filename,
+                        line=self._lines[line - 1],
+                        lineno=line,
+                        col=col + 1))
 
     def handle_endtag(self, tag: Text) -> None:
         while self._stack and self._stack[-1][0] != tag:
             self._stack.pop()
         if not self._stack or self._stack[-1][0] != tag:
-            raise LinterException(
-                'Unclosed tag at line %d, column %d' % self.getpos())
+            line, col = self.getpos()
+            self.diagnostics.append(
+                Diagnostic('Unclosed tag',
+                           filename=self._filename,
+                           line=self._lines[line - 1],
+                           lineno=line,
+                           col=col + 1))
+            return
         _, attrs, starttag, begin = self._stack.pop()
         if not self._stack:
             line, col = self.getpos()
@@ -370,17 +434,23 @@ class VueLinter(Linter):
 
     # pylint: disable=R0903
 
-    def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
+    def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
         self.__options = options or {}
 
-    def run_one(self, filename: Text,
-                contents: bytes) -> Tuple[bytes, Sequence[Text]]:
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
         parser = VueHTMLParser()
         try:
-            sections = parser.parse(contents.decode('utf-8'))
+            sections = parser.parse(contents.decode('utf-8'),
+                                    filename=filename)
         except AssertionError as assertion:
-            raise LinterException(str(assertion))
+            raise LinterException(str(assertion),
+                                  diagnostics=parser.diagnostics,
+                                  fixable=False)
+        if parser.diagnostics:
+            raise LinterException('Found Vue errors',
+                                  diagnostics=parser.diagnostics,
+                                  fixable=False)
 
         new_sections = []
         for tag, _, starttag, section_contents in sections:
@@ -390,22 +460,18 @@ class VueLinter(Linter):
             except subprocess.CalledProcessError as cpe:
                 raise LinterException(
                     str(b'\n'.join(cpe.output.split(b'\n')[1:]),
-                        encoding='utf-8'))
+                        encoding='utf-8'),
+                    fixable=False)
 
         if len(new_sections) != len(sections):
             raise LinterException('Mismatched sections: expecting %d, got %d' %
-                                  (len(sections), len(new_sections)))
+                                  (len(sections), len(new_sections)),
+                                  fixable=False)
 
         # Finally, run prettier on the whole thing.
-        return _lint_prettier(
-            '\n\n'.join(new_sections).encode('utf-8') + b'\n',
-            filename), ['vue']
-
-    def run_all(
-            self, filenames: Sequence[Text],
-            contents_callback: Callable[[Text], bytes]
-    ) -> Tuple[Mapping[Text, bytes], Mapping[Text, bytes], Sequence[Text]]:
-        return {}, {}, []
+        return SingleResult(
+            _lint_prettier('\n\n'.join(new_sections).encode('utf-8') + b'\n',
+                           filename), ['vue'])
 
     @property
     def name(self) -> Text:
@@ -417,23 +483,16 @@ class HTMLLinter(Linter):
 
     # pylint: disable=R0903
 
-    def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
+    def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
         self.__options = options or {}
 
-    def run_one(self, filename: Text,
-                contents: bytes) -> Tuple[bytes, Sequence[Text]]:
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
         contents = _lint_html(
             contents, strict=bool(self.__options.get('strict', False)))
 
         # Finally, run prettier on the whole thing.
-        return _lint_prettier(contents, filename), ['html']
-
-    def run_all(
-            self, filenames: Sequence[Text],
-            contents_callback: Callable[[Text], bytes]
-    ) -> Tuple[Mapping[Text, bytes], Mapping[Text, bytes], Sequence[Text]]:
-        return {}, {}, []
+        return SingleResult(_lint_prettier(contents, filename), ['html'])
 
     @property
     def name(self) -> Text:
@@ -445,7 +504,7 @@ class PHPLinter(Linter):
 
     # pylint: disable=R0903
 
-    def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
+    def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
         self.__options = options or {}
         standard = self.__options.get(
@@ -454,8 +513,7 @@ class PHPLinter(Linter):
                          'phpcbf/Standards/OmegaUp/ruleset.xml'))
         self.__common_args = ['--encoding=utf-8', '--standard=%s' % standard]
 
-    def run_one(self, filename: Text,
-                contents: bytes) -> Tuple[bytes, Sequence[Text]]:
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
         args = ([_which('phpcbf')] + self.__common_args
                 + ['--stdin-path=%s' % filename])
         logging.debug('lint_php: Running %s', args)
@@ -480,7 +538,7 @@ class PHPLinter(Linter):
             # If phpcbf was able to fix anything, let's go with that instead of
             # running phpcs. Otherwise, phpcs will return non-zero and the
             # suggestions won't be used.
-            return new_contents, ['php']
+            return SingleResult(new_contents, ['php'])
 
         # Even if phpcbf didn't find anything, phpcs might.
         args = ([_which('phpcs'), '-n', '-s', '-q'] + self.__common_args
@@ -498,17 +556,33 @@ class PHPLinter(Linter):
                           result.returncode, result.stdout)
             raise LinterException(result.stdout.decode('utf-8').strip())
 
-        return new_contents, ['php']
-
-    def run_all(
-            self, filenames: Sequence[Text],
-            contents_callback: Callable[[Text], bytes]
-    ) -> Tuple[Mapping[Text, bytes], Mapping[Text, bytes], Sequence[Text]]:
-        return {}, {}, []
+        return SingleResult(new_contents, ['php'])
 
     @property
     def name(self) -> Text:
         return 'php'
+
+
+_DIAGNOSTIC_RE = re.compile(r'^[^:\s]+:(\d+):(\d+): (.*)$')
+
+
+def _process_diagnostics_output(toolname: str, filename: str,
+                                lines: Sequence[str],
+                                output: str) -> Sequence[Diagnostic]:
+    diagnostics: List[Diagnostic] = []
+    for line in output.split('\n'):
+        match = _DIAGNOSTIC_RE.match(line.strip())
+        if not match:
+            continue
+        diagnostics.append(
+            Diagnostic(
+                f'[{toolname}] {match.group(3)}',
+                filename=filename,
+                lineno=int(match.group(1)),
+                line=lines[int(match.group(1)) - 1].rstrip(),
+                col=int(match.group(2)) or None,
+            ))
+    return diagnostics
 
 
 class PythonLinter(Linter):
@@ -516,12 +590,13 @@ class PythonLinter(Linter):
 
     # pylint: disable=R0903
 
-    def __init__(self, options: Optional[Mapping[Text, Text]] = None) -> None:
+    def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
         self.__options = options or {}
 
-    def run_one(self, filename: Text,
-                contents: bytes) -> Tuple[bytes, Sequence[Text]]:
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
+        diagnostics: List[Diagnostic] = []
+        lines = contents.decode('utf-8').split('\n')
         with tempfile.TemporaryDirectory(prefix='python_linter_') as tmpdir:
             tmp_path = os.path.join(tmpdir, os.path.basename(filename))
             with open(tmp_path, 'wb') as pyfile:
@@ -529,7 +604,11 @@ class PythonLinter(Linter):
 
             python3 = _which('python3')
 
-            args = [python3, '-m', 'pycodestyle', tmp_path]
+            args = [
+                python3, '-m', 'pycodestyle',
+                '--format=%(path)s:%(row)d:%(col)d: %(code)s %(text)s',
+                tmp_path
+            ]
             for configname in ('pycodestyle_config', 'pep8_config'):
                 if configname not in self.__options:
                     continue
@@ -543,14 +622,17 @@ class PythonLinter(Linter):
                                stderr=subprocess.STDOUT,
                                universal_newlines=True)
             except subprocess.CalledProcessError as cpe:
-                raise LinterException(cpe.output.replace(tmp_path, filename),
-                                      fixable=False)
+                diagnostics.extend(
+                    _process_diagnostics_output('pycodestyle', filename, lines,
+                                                cpe.output.strip()))
 
             # We need to disable import-error since the file won't be checked
             # in the repository, but in a temporary directory.
             args = [
-                python3, '-m', 'pylint', '--output-format=parseable',
-                '--reports=no', '--disable=import-error', tmp_path
+                python3, '-m', 'pylint', '--output-format=text',
+                ('--msg-template={abspath}:{line}:{column}: '
+                 '{msg_id}({symbol}) {msg}'), '--reports=no',
+                '--disable=import-error', tmp_path
             ]
             if 'pylint_config' in self.__options:
                 args.append('--rcfile=%s' % self.__options['pylint_config'])
@@ -562,12 +644,18 @@ class PythonLinter(Linter):
                                stderr=subprocess.STDOUT,
                                universal_newlines=True)
             except subprocess.CalledProcessError as cpe:
-                raise LinterException(cpe.output.replace(tmp_path, filename),
-                                      fixable=False)
+                diagnostics.extend(
+                    _process_diagnostics_output('pylint', filename, lines,
+                                                cpe.output.strip()))
 
             if self.__options.get('mypy', False):
                 args = [
-                    _which('mypy'), '--strict', '--no-incremental', filename
+                    _which('mypy'),
+                    '--show-column-numbers',
+                    '--strict',
+                    '--no-incremental',
+                    '--follow-imports=silent',
+                    filename,
                 ]
                 try:
                     logging.debug('lint_python: Running %s', args)
@@ -577,17 +665,16 @@ class PythonLinter(Linter):
                                    stderr=subprocess.STDOUT,
                                    universal_newlines=True)
                 except subprocess.CalledProcessError as cpe:
-                    raise LinterException(
-                        cpe.output.replace(tmp_path, filename),
-                        fixable=False)
+                    diagnostics.extend(
+                        _process_diagnostics_output('mypy', filename, lines,
+                                                    cpe.output.strip()))
 
-            return contents, []
-
-    def run_all(
-            self, filenames: Sequence[Text],
-            contents_callback: Callable[[Text], bytes]
-    ) -> Tuple[Mapping[Text, bytes], Mapping[Text, bytes], Sequence[Text]]:
-        return {}, {}, []
+        if diagnostics:
+            diagnostics.sort(key=lambda d: d.lineno)
+            raise LinterException('Python lint errors',
+                                  fixable=False,
+                                  diagnostics=diagnostics)
+        return SingleResult(contents, [])
 
     @property
     def name(self) -> Text:
@@ -597,7 +684,7 @@ class PythonLinter(Linter):
 class CustomLinter(Linter):
     '''A lazily, dynamically-loaded linter.'''
 
-    def __init__(self, custom_linter: Mapping[Text, Text],
+    def __init__(self, custom_linter: Options,
                  config_file_path: Text) -> None:
         super().__init__()
         self.__module_path = os.path.join(
@@ -621,7 +708,7 @@ class CustomLinter(Linter):
                                   self.__config['class_name'])(self.__options)
         return self.__instance
 
-    def __call__(self, options: Optional[Mapping[Text, Text]] = None
+    def __call__(self, options: Optional[Options] = None
                  ) -> 'CustomLinter':
         # Instead of the constructor being stored in the map of available
         # linters, a live instance of this class is stored. Later, this
@@ -640,14 +727,11 @@ class CustomLinter(Linter):
             '_CustomLinter__instance': None,
         }
 
-    def run_one(self, filename: Text,
-                contents: bytes) -> Tuple[bytes, Sequence[Text]]:
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
         return self._instance.run_one(filename, contents)
 
-    def run_all(
-            self, filenames: Sequence[Text],
-            contents_callback: Callable[[Text], bytes]
-    ) -> Tuple[Mapping[Text, bytes], Mapping[Text, bytes], Sequence[Text]]:
+    def run_all(self, filenames: Sequence[Text],
+                contents_callback: Callable[[Text], bytes]) -> MultipleResults:
         return self._instance.run_all(filenames, contents_callback)
 
     @property
@@ -660,12 +744,11 @@ class CommandLinter(Linter):
 
     # pylint: disable=R0903
 
-    def __init__(self, options: Optional[Mapping[Text, Any]] = None) -> None:
+    def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
         self.__options = options or {}
 
-    def run_one(self, filename: Text,
-                contents: bytes) -> Tuple[bytes, Sequence[Text]]:
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
         extension = os.path.splitext(filename)[1]
         with tempfile.NamedTemporaryFile(suffix=extension) as tmp:
             tmp.write(contents)
@@ -688,13 +771,7 @@ class CommandLinter(Linter):
                     raise LinterException(cpe.output, fixable=False)
 
             with open(tmp.name, 'rb') as tmp_in:
-                return tmp_in.read(), ['command']
-
-    def run_all(
-            self, filenames: Sequence[Text],
-            contents_callback: Callable[[Text], bytes]
-    ) -> Tuple[Mapping[Text, bytes], Mapping[Text, bytes], Sequence[Text]]:
-        return {}, {}, []
+                return SingleResult(tmp_in.read(), ['command'])
 
     @property
     def name(self) -> Text:

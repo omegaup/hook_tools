@@ -24,36 +24,34 @@ class TestLinters(unittest.TestCase):
 
         linter = linters.WhitespaceLinter()
 
-        new_contents, violations = linter.run_one('test.txt',
-                                                  b'Hello\r\nWorld!\n')
-        self.assertEqual(new_contents, b'Hello\nWorld!\n')
-        self.assertEqual(violations, ['Windows-style EOF'])
+        self.assertEqual(
+            linter.run_one('test.txt', b'Hello\r\nWorld!\n'),
+            linters.SingleResult(b'Hello\nWorld!\n', ['Windows-style EOF']))
 
-        new_contents, violations = linter.run_one('test.txt',
-                                                  b'Hello\n\n\nWorld!\n')
-        self.assertEqual(new_contents, b'Hello\n\nWorld!\n')
-        self.assertEqual(violations, ['consecutive empty lines'])
+        self.assertEqual(
+            linter.run_one('test.txt', b'Hello\n\n\nWorld!\n'),
+            linters.SingleResult(b'Hello\n\nWorld!\n',
+                                 ['consecutive empty lines']))
 
-        new_contents, violations = linter.run_one('test.txt',
-                                                  b'function() {\n\n}\n')
-        self.assertEqual(new_contents, b'function() {\n}\n')
-        self.assertEqual(violations, ['empty lines after an opening brace'])
+        self.assertEqual(
+            linter.run_one('test.txt', b'function() {\n\n}\n'),
+            linters.SingleResult(b'function() {\n}\n',
+                                 ['empty lines after an opening brace']))
 
-        new_contents, violations = linter.run_one('test.txt',
-                                                  b'function() {\n//\n\n}\n')
-        self.assertEqual(new_contents, b'function() {\n//\n}\n')
-        self.assertEqual(violations, ['empty lines before a closing brace'])
+        self.assertEqual(
+            linter.run_one('test.txt', b'function() {\n//\n\n}\n'),
+            linters.SingleResult(b'function() {\n//\n}\n',
+                                 ['empty lines before a closing brace']))
 
-        new_contents, violations = linter.run_one(
-            'test.txt', b'function() {\r\n\n\n// \n\n}\n')
-        self.assertEqual(new_contents, b'function() {\n//\n}\n')
-        self.assertEqual(violations, [
-            'Windows-style EOF',
-            'trailing whitespace',
-            'consecutive empty lines',
-            'empty lines after an opening brace',
-            'empty lines before a closing brace',
-        ])
+        self.assertEqual(
+            linter.run_one('test.txt', b'function() {\r\n\n\n// \n\n}\n'),
+            linters.SingleResult(b'function() {\n//\n}\n', [
+                'Windows-style EOF',
+                'trailing whitespace',
+                'consecutive empty lines',
+                'empty lines after an opening brace',
+                'empty lines before a closing brace',
+            ]))
 
     def test_command(self) -> None:
         """Tests CommandLinter."""
@@ -62,10 +60,8 @@ class TestLinters(unittest.TestCase):
             'commands': ['python3 test/uppercase_linter.py'],
         })
 
-        new_contents, violations = linter.run_one('test.txt',
-                                                  b'Hello, World!\n')
-        self.assertEqual(new_contents, b'HELLO, WORLD!\n')
-        self.assertEqual(violations, ['command'])
+        self.assertEqual(linter.run_one('test.txt', b'Hello, World!\n'),
+                         linters.SingleResult(b'HELLO, WORLD!\n', ['command']))
 
     @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
     def test_javascript(self) -> None:
@@ -73,16 +69,15 @@ class TestLinters(unittest.TestCase):
 
         linter = linters.JavaScriptLinter()
 
-        new_contents, violations = linter.run_one(
-            'test.js', b'  function x ( ){a;b;c;};\n')
-        self.assertEqual(new_contents,
-                         b'function x() {\n  a;\n  b;\n  c;\n}\n')
-        self.assertEqual(violations, ['javascript'])
+        self.assertEqual(
+            linter.run_one('test.js', b'  function x ( ){a;b;c;};\n'),
+            linters.SingleResult(b'function x() {\n  a;\n  b;\n  c;\n}\n',
+                                 ['javascript']))
 
-        new_contents, violations = linter.run_one(
-            'test.js', b'#!/usr/bin/node\nreturn;\n')
-        self.assertEqual(new_contents, b'#!/usr/bin/node\nreturn;\n')
-        self.assertEqual(violations, ['javascript'])
+        self.assertEqual(
+            linter.run_one('test.js', b'#!/usr/bin/node\nreturn;\n'),
+            linters.SingleResult(b'#!/usr/bin/node\nreturn;\n',
+                                 ['javascript']))
 
     @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
     def test_vue(self) -> None:
@@ -91,15 +86,26 @@ class TestLinters(unittest.TestCase):
         linter = linters.VueLinter()
 
         with self.assertRaisesRegex(linters.LinterException,
-                                    r'Unclosed tag at line 2, column 3'):
+                                    r'Found Vue errors') as lex:
             linter.run_one('test.vue',
                            b'<template>\n<b></span>\n</template>\n')
+        self.assertEqual(lex.exception.diagnostics, [
+            linters.Diagnostic(message='Unclosed tag',
+                               filename='test.vue',
+                               line='<b></span>',
+                               lineno=2,
+                               col=4),
+            linters.Diagnostic('Unclosed tag',
+                               filename='test.vue',
+                               line='</template>',
+                               lineno=3,
+                               col=1),
+        ])
 
-        new_contents, violations = linter.run_one(
-            'test.vue', b'<template>\n<b></b>\n</template>\n')
-        self.assertEqual(new_contents,
-                         b'<template>\n  <b></b>\n</template>\n')
-        self.assertEqual(violations, ['vue'])
+        self.assertEqual(
+            linter.run_one('test.vue', b'<template>\n<b></b>\n</template>\n'),
+            linters.SingleResult(b'<template>\n  <b></b>\n</template>\n',
+                                 ['vue']))
 
     @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
     def test_html(self) -> None:
@@ -107,15 +113,14 @@ class TestLinters(unittest.TestCase):
 
         linter = linters.HTMLLinter()
 
-        new_contents, violations = linter.run_one(
-            'test.html',
-            b'<!DOCTYPE html>\n<html><head><title /></head>'
-            b'<body>\n<input/></body></html>\n')
         self.assertEqual(
-            new_contents,
-            b'<!DOCTYPE html>\n<html>\n  <head>\n    <title></title>\n'
-            b'  </head>\n  <body>\n    <input />\n  </body>\n</html>\n')
-        self.assertEqual(violations, ['html'])
+            linter.run_one(
+                'test.html', b'<!DOCTYPE html>\n<html><head><title /></head>'
+                b'<body>\n<input/></body></html>\n'),
+            linters.SingleResult(
+                b'<!DOCTYPE html>\n<html>\n  <head>\n    <title></title>\n'
+                b'  </head>\n  <body>\n    <input />\n  </body>\n</html>\n',
+                ['html']))
 
     @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
     def test_php(self) -> None:
@@ -123,21 +128,49 @@ class TestLinters(unittest.TestCase):
 
         linter = linters.PHPLinter()
 
-        new_contents, violations = linter.run_one(
-            'test.php', b'<?php\necho array("foo");')
         self.assertEqual(
-            new_contents,
-            b'<?php\necho [\'foo\'];\n')
-        self.assertEqual(violations, ['php'])
+            linter.run_one('test.php', b'<?php\necho array("foo");'),
+            linters.SingleResult(b'<?php\necho [\'foo\'];\n', ['php']))
 
     def test_python(self) -> None:
         """Tests PythonLinter."""
 
         linter = linters.PythonLinter()
 
-        with self.assertRaisesRegex(linters.LinterException, r'.*\bE111\b.*'):
-            linter.run_one(
-                'test.py', b'def main():\n  pass\n')
+        with self.assertRaisesRegex(linters.LinterException,
+                                    'Python lint errors') as lex:
+            linter.run_one('test.py', b'def main():\n  pass\n')
+        self.assertEqual(lex.exception.diagnostics, [
+            linters.Diagnostic(
+                message=('[pylint] C0114(missing-module-docstring) '
+                         'Missing module docstring'),
+                filename='test.py',
+                line='def main():',
+                lineno=1,
+            ),
+            linters.Diagnostic(
+                message=('[pylint] C0116(missing-function-docstring) '
+                         'Missing function or method docstring'),
+                filename='test.py',
+                line='def main():',
+                lineno=1,
+            ),
+            linters.Diagnostic(
+                message=('[pycodestyle] E111 indentation is not a '
+                         'multiple of four'),
+                filename='test.py',
+                line='  pass',
+                lineno=2,
+                col=3,
+            ),
+            linters.Diagnostic(
+                message=('[pylint] W0311(bad-indentation) '
+                         'Bad indentation. Found 2 spaces, expected 4'),
+                filename='test.py',
+                line='  pass',
+                lineno=2,
+            ),
+        ])
 
 
 if __name__ == '__main__':
