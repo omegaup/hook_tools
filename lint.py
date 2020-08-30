@@ -134,7 +134,6 @@ def _report_linter_exception(filename: Text, lex: linters.LinterException,
             print((f'::{diagnostic.level} '
                    f'{",".join(location)}::{diagnostic.message}\n'),
                   end='')
-        return
     message_lines: List[str] = []
     if not lex.diagnostics:
         message_lines.append(

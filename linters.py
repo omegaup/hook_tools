@@ -43,6 +43,7 @@ def _which(program: Text) -> Text:
 
 _TIDY_PATH = os.path.join(git_tools.HOOK_TOOLS_ROOT, 'tidy')
 _PRETTIER_RE = re.compile(r'^(?:[^\s:]+\s*)?[^\s:]+: (.*) \((\d+):(\d+)\)\s*$')
+_DIAGNOSTIC_RE = re.compile(r'^[^:\s]+:(\d+):(\d+): (.*)$')
 
 Options = Mapping[str, Any]
 ContentsCallback = Callable[[str], bytes]
@@ -101,6 +102,29 @@ class LinterException(Exception):
     def diagnostics(self) -> Sequence[Diagnostic]:
         '''Any diagnostics that this LinterException could have.'''
         return self.__diagnostics
+
+
+def _process_diagnostics_output(
+        filename: str,
+        lines: Sequence[str],
+        output: str,
+        toolname: Optional[str] = None) -> Sequence[Diagnostic]:
+    '''Process the output of a tool in standard format.'''
+    diagnostics: List[Diagnostic] = []
+    for line in output.split('\n'):
+        match = _DIAGNOSTIC_RE.match(line.strip())
+        if not match:
+            continue
+        diagnostics.append(
+            Diagnostic(
+                (f'[{toolname}] {match.group(3)}'
+                 if toolname else match.group(3)),
+                filename=filename,
+                lineno=int(match.group(1)),
+                line=lines[int(match.group(1)) - 1].rstrip(),
+                col=int(match.group(2)) or None,
+            ))
+    return diagnostics
 
 
 def _custom_command(command: Text, filename: Text,
@@ -542,7 +566,7 @@ class PHPLinter(Linter):
 
         # Even if phpcbf didn't find anything, phpcs might.
         args = ([_which('phpcs'), '-n', '-s', '-q'] + self.__common_args
-                + ['--stdin-path=%s' % filename])
+                + ['--stdin-path=%s' % filename, '--report=emacs'])
         logging.debug('lint_php: Running %s', args)
         result = subprocess.run(args,
                                 input=contents,
@@ -552,37 +576,21 @@ class PHPLinter(Linter):
                                 cwd=git_tools.HOOK_TOOLS_ROOT)
 
         if result.returncode != 0:
-            logging.debug('lint_php: Return code %d, stdout = %s',
-                          result.returncode, result.stdout)
-            raise LinterException(result.stdout.decode('utf-8').strip())
+            logging.debug('lint_php: Return code %d, stdout = %s, stderr = %s',
+                          result.returncode, result.stdout, result.stderr)
+            raise LinterException(
+                'phpcs lint errors',
+                fixable=False,
+                diagnostics=_process_diagnostics_output(
+                    filename,
+                    lines=contents.decode('utf-8').split('\n'),
+                    output=result.stdout.decode('utf-8').strip()))
 
         return SingleResult(new_contents, ['php'])
 
     @property
     def name(self) -> Text:
         return 'php'
-
-
-_DIAGNOSTIC_RE = re.compile(r'^[^:\s]+:(\d+):(\d+): (.*)$')
-
-
-def _process_diagnostics_output(toolname: str, filename: str,
-                                lines: Sequence[str],
-                                output: str) -> Sequence[Diagnostic]:
-    diagnostics: List[Diagnostic] = []
-    for line in output.split('\n'):
-        match = _DIAGNOSTIC_RE.match(line.strip())
-        if not match:
-            continue
-        diagnostics.append(
-            Diagnostic(
-                f'[{toolname}] {match.group(3)}',
-                filename=filename,
-                lineno=int(match.group(1)),
-                line=lines[int(match.group(1)) - 1].rstrip(),
-                col=int(match.group(2)) or None,
-            ))
-    return diagnostics
 
 
 class PythonLinter(Linter):
@@ -623,8 +631,10 @@ class PythonLinter(Linter):
                                universal_newlines=True)
             except subprocess.CalledProcessError as cpe:
                 diagnostics.extend(
-                    _process_diagnostics_output('pycodestyle', filename, lines,
-                                                cpe.output.strip()))
+                    _process_diagnostics_output(filename,
+                                                lines,
+                                                cpe.output.strip(),
+                                                toolname='pycodestyle'))
 
             # We need to disable import-error since the file won't be checked
             # in the repository, but in a temporary directory.
@@ -645,8 +655,10 @@ class PythonLinter(Linter):
                                universal_newlines=True)
             except subprocess.CalledProcessError as cpe:
                 diagnostics.extend(
-                    _process_diagnostics_output('pylint', filename, lines,
-                                                cpe.output.strip()))
+                    _process_diagnostics_output(filename,
+                                                lines,
+                                                cpe.output.strip(),
+                                                toolname='pylint'))
 
             if self.__options.get('mypy', False):
                 args = [
@@ -666,8 +678,10 @@ class PythonLinter(Linter):
                                    universal_newlines=True)
                 except subprocess.CalledProcessError as cpe:
                     diagnostics.extend(
-                        _process_diagnostics_output('mypy', filename, lines,
-                                                    cpe.output.strip()))
+                        _process_diagnostics_output(filename,
+                                                    lines,
+                                                    cpe.output.strip(),
+                                                    toolname='mypy'))
 
         if diagnostics:
             diagnostics.sort(key=lambda d: d.lineno)
