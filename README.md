@@ -43,10 +43,10 @@ linters soportados (con sus respectivas opciones) son:
 
 Todos los linters soportan dos opciones adicionales:
 
-* `whitelist`: Un arreglo con expresiones regulares. Los archivos a considerar
+* `allowlist`: Un arreglo con expresiones regulares. Los archivos a considerar
   para el linter actual deben de hacer match con _al menos un_ regex de este
   arreglo.
-* `blacklist`: Un arreglo con expresiones regulares. Los archivos a considerar
+* `denylist`: Un arreglo con expresiones regulares. Los archivos a considerar
   para el linter actual deben de _no_ hacer match con _ningún_ regex de este
   arreglo.
 

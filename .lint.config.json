@@ -3,7 +3,7 @@
 		"python": {
 			"pycodestyle_config": "setup.cfg",
 			"mypy": true,
-			"whitelist": [
+			"allowlist": [
 				".*\\.py$"
 			]
 		}

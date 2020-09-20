@@ -195,7 +195,7 @@ def _run_linter(
 
 def _get_enabled_linters(
         config: Mapping[Text, Any], config_file_path: Text,
-        linter_whitelist: Text
+        linter_allowlist: Text
 ) -> Iterator[Tuple[LinterFactory, Mapping[Text, Any]]]:
     '''Loads any custom linters.'''
     available_linters = dict(_LINTER_MAPPING)
@@ -204,18 +204,18 @@ def _get_enabled_linters(
         available_linters[custom_linter['name']] = linters.CustomLinter(
             custom_linter, config_file_path)
 
-    final_linter_whitelist = set(available_linters.keys())
+    final_linter_allowlist = set(available_linters.keys())
 
-    if linter_whitelist:
-        args_linters = set(linter_whitelist.split(','))
-        unknown_linters = args_linters - final_linter_whitelist
+    if linter_allowlist:
+        args_linters = set(linter_allowlist.split(','))
+        unknown_linters = args_linters - final_linter_allowlist
         if unknown_linters:
             print('Unknown linters %s%s%s.' %
                   (git_tools.COLORS.FAIL, ', '.join(unknown_linters),
                    git_tools.COLORS.NORMAL),
                   file=sys.stderr)
             sys.exit(1)
-        final_linter_whitelist = args_linters
+        final_linter_allowlist = args_linters
 
     unknown_linters = set(config['lint']) - set(available_linters)
     if unknown_linters:
@@ -227,7 +227,7 @@ def _get_enabled_linters(
         sys.exit(1)
 
     for linter_name, options in config['lint'].items():
-        if linter_name not in final_linter_whitelist:
+        if linter_name not in final_linter_allowlist:
             continue
         yield available_linters[linter_name], options
 
@@ -277,17 +277,17 @@ def main() -> None:
                                                 args.linters):
         filtered_files = args.files
 
-        # Filter only the files in the whitelist.
-        whitelist = [re.compile(r) for r in options.get('whitelist', [])]
+        # Filter only the files in the allowlist.
+        allowlist = [re.compile(r) for r in options.get('allowlist', [])]
         filtered_files = [
             filename for filename in filtered_files
-            if any(r.match(filename) for r in whitelist)]
+            if any(r.match(filename) for r in allowlist)]
 
-        # And not in the blacklist.
-        blacklist = [re.compile(r) for r in options.get('blacklist', [])]
+        # And not in the denylist.
+        denylist = [re.compile(r) for r in options.get('denylist', [])]
         filtered_files = [
             filename for filename in filtered_files
-            if all(not r.match(filename) for r in blacklist)]
+            if all(not r.match(filename) for r in denylist)]
         local_violations, local_fixable = _run_linter(
             args, linter(options), filtered_files,
             validate_only, args.diagnostics_output)
