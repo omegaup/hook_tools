@@ -165,6 +165,20 @@ def _report_linter_exception(filename: Text, lex: linters.LinterException,
     print('\n'.join(message_lines), end='', file=sys.stderr)
 
 
+def _report_error(message: Text,
+                  diagnostics_output: DiagnosticsOutput) -> None:
+    '''Display an error message to the user.'''
+    if diagnostics_output == DiagnosticsOutput.GITHUB:
+        message = message.replace('%',
+                                  '%25').replace('\r',
+                                                 '%0D').replace('\n', '%0A')
+        print(f'::error ::{message}\n', end='')
+    else:
+        print('%s%s%s' %
+              (git_tools.COLORS.FAIL, message, git_tools.COLORS.NORMAL),
+              file=sys.stderr)
+
+
 def _run_linter(
         args: argparse.Namespace, linter: linters.Linter,
         filenames: Sequence[Text], validate_only: bool,
@@ -296,21 +310,19 @@ def main() -> None:
 
     if file_violations:
         if not fixable:
-            print('%sErrors cannot be automatically fixed.%s' %
-                  (git_tools.COLORS.FAIL, git_tools.COLORS.NORMAL),
-                  file=sys.stderr)
+            _report_error('Errors cannot be automatically fixed.',
+                          args.diagnostics_output)
         elif validate_only:
-            if git_tools.attempt_automatic_fixes(sys.argv[0], args,
+            if git_tools.attempt_automatic_fixes(sys.argv[0],
+                                                 args,
                                                  file_violations,
                                                  pre_upload=args.pre_upload):
                 sys.exit(1)
-            print('%sLinter validation errors.%s '
-                  'Please run `%s` to fix them.' %
-                  (git_tools.COLORS.FAIL, git_tools.COLORS.NORMAL,
-                   git_tools.get_fix_commandline(
-                       _get_command_name(args.command_name), args,
-                       file_violations)),
-                  file=sys.stderr)
+            _report_error(('Linter validation errors. '
+                           'Please run\n\n    %s\n\nto fix them.') %
+                          git_tools.get_fix_commandline(
+                              _get_command_name(args.command_name), args,
+                              file_violations), args.diagnostics_output)
         else:
             print('Files written to working directory. '
                   '%sPlease commit them before pushing.%s' % (
