@@ -32,6 +32,7 @@ _LINTER_MAPPING: Dict[Text, LinterFactory] = {
     'typescript': linters.TypeScriptLinter,
     'karel': linters.KarelLinter,
     'markdown': linters.MarkdownLinter,
+    'json': linters.JsonLinter,
     'html': linters.HTMLLinter,
     'vue': linters.VueLinter,
     'php': linters.PHPLinter,

@@ -372,6 +372,28 @@ class MarkdownLinter(Linter):
         return 'markdown'
 
 
+class JsonLinter(Linter):
+    '''Runs prettier against |files|.'''
+
+    # pylint: disable=R0903
+
+    def __init__(self, options: Optional[Options] = None) -> None:
+        super().__init__()
+        self.__options = options or {}
+
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
+        try:
+            return SingleResult(_lint_prettier(contents, filename),
+                                ['json'])
+        except subprocess.CalledProcessError as cpe:
+            raise LinterException(
+                str(b'\n'.join(cpe.output.split(b'\n')[1:]), encoding='utf-8'))
+
+    @property
+    def name(self) -> Text:
+        return 'json'
+
+
 class WhitespaceLinter(Linter):
     '''Removes annoying superfluous whitespace.'''
     # pylint: disable=R0903
