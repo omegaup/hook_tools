@@ -5,6 +5,7 @@ MAINTAINER Luis Héctor Chávez <lhchavez@omegaup.com>
 RUN ln -snf /usr/share/zoneinfo/Etc/UTC /etc/localtime && echo Etc/UTC > /etc/timezone
 RUN apt-get update -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        clang-format \
         curl \
         git \
         locales \

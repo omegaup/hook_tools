@@ -761,6 +761,49 @@ class PythonLinter(Linter):
         return 'python'
 
 
+class ClangFormatLinter(Linter):
+    '''Runs clang-format.'''
+
+    # pylint: disable=R0903
+
+    def __init__(self, options: Optional[Options] = None) -> None:
+        super().__init__()
+        self.__options = options or {}
+
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
+        with tempfile.TemporaryDirectory(
+                prefix='clang_format_linter_') as tmpdir:
+            tmp_path = os.path.join(tmpdir, os.path.basename(filename))
+            with open(tmp_path, 'wb') as outf:
+                outf.write(contents)
+
+            args = [
+                _which('clang-format'),
+                '--style=file',
+                '--fallback-style=Google',
+                f'--assume-filename={filename}',
+                tmp_path,
+            ]
+            logging.debug('lint_clang_format: Running %s', args)
+            result = subprocess.run(args,
+                                    check=False,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE)
+            if result.returncode != 0:
+                raise LinterException('Found clang-format errors',
+                                      diagnostics=[
+                                          Diagnostic(
+                                              result.stderr.decode('utf-8'),
+                                              filename=filename),
+                                      ],
+                                      fixable=False)
+            return SingleResult(result.stdout, ['clang-format'])
+
+    @property
+    def name(self) -> Text:
+        return 'clang-format'
+
+
 class CustomLinter(Linter):
     '''A lazily, dynamically-loaded linter.'''
 

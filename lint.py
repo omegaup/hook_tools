@@ -27,16 +27,17 @@ from hook_tools import git_tools  # pylint: disable=E0402,C0413
 LinterFactory = Callable[..., linters.Linter]
 
 _LINTER_MAPPING: Dict[Text, LinterFactory] = {
-    'whitespace': linters.WhitespaceLinter,
+    'clang-format': linters.ClangFormatLinter,
+    'html': linters.HTMLLinter,
     'javascript': linters.JavaScriptLinter,
-    'typescript': linters.TypeScriptLinter,
+    'json': linters.JsonLinter,
     'karel': linters.KarelLinter,
     'markdown': linters.MarkdownLinter,
-    'json': linters.JsonLinter,
-    'html': linters.HTMLLinter,
-    'vue': linters.VueLinter,
     'php': linters.PHPLinter,
     'python': linters.PythonLinter,
+    'typescript': linters.TypeScriptLinter,
+    'vue': linters.VueLinter,
+    'whitespace': linters.WhitespaceLinter,
 }
 
 _ROOT = git_tools.root_dir()
