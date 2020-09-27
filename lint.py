@@ -136,8 +136,10 @@ def _report_linter_exception(filename: Text, lex: linters.LinterException,
                 location.append(f'line={diagnostic.lineno}')
             if diagnostic.col is not None:
                 location.append(f'col={diagnostic.col}')
+            message = diagnostic.message.replace('%', '%25').replace(
+                '\r', '%0D').replace('\n', '%0A')
             print((f'::{diagnostic.level} '
-                   f'{",".join(location)}::{diagnostic.message}\n'),
+                   f'{",".join(location)}::{message}\n'),
                   end='')
     message_lines: List[str] = []
     if not lex.diagnostics:
