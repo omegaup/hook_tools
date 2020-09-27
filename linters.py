@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 from html.parser import HTMLParser
+import bisect
 import dataclasses
 import importlib.util
 import logging
@@ -60,6 +61,14 @@ class MultipleResults(NamedTuple):
     new_contents: Mapping[str, bytes]
     original_contents: Mapping[str, bytes]
     violations: Sequence[str] = ()
+
+
+class ProblematicTerm(NamedTuple):
+    '''Represents a list of problematic terms/messages associated with them.'''
+    regexps: Sequence[re.Pattern]
+    message: str
+    allowlist: Optional[Sequence[re.Pattern]]
+    denylist: Optional[Sequence[re.Pattern]]
 
 
 @dataclasses.dataclass
@@ -435,6 +444,84 @@ class WhitespaceLinter(Linter):
     @property
     def name(self) -> Text:
         return 'whitespace'
+
+
+class ProblematicTermsLinter(Linter):
+    '''Warns if there are problematic terms in the codebase.'''
+    # pylint: disable=R0903
+
+    def __init__(self, options: Optional[Options] = None) -> None:
+        super().__init__()
+        self.__terms: List[ProblematicTerm] = []
+        for term in (options or {}).get('terms', []):
+            if not isinstance(term, dict):
+                raise ValueError(f'{term} is not a dictionary')
+            if 'regexps' not in term:
+                raise ValueError(f'{term} does not contain a key "regexps"')
+            if not isinstance(term['regexps'], list):
+                raise ValueError(f'{term} is not a list of string')
+            if not all(isinstance(regexp, str) for regexp in term['regexps']):
+                raise ValueError(f'{term} is not a list of string')
+            allowlist: Optional[Sequence[re.Pattern]] = None
+            denylist: Optional[Sequence[re.Pattern]] = None
+            if 'allowlist' in term:
+                allowlist = [
+                    re.compile(pattern) for pattern in term['allowlist']
+                ]
+            if 'denylist' in term:
+                denylist = [
+                    re.compile(pattern) for pattern in term['denylist']
+                ]
+            self.__terms.append(
+                ProblematicTerm(
+                    regexps=[
+                        re.compile(regexp.encode('utf-8'), re.MULTILINE)
+                        for regexp in term['regexps']
+                    ],
+                    message=term.get('message', 'is a problematic term'),
+                    allowlist=allowlist,
+                    denylist=denylist,
+                ))
+
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
+        '''Tries to identify problematic term in the provided file.'''
+        diagnostics = []
+        lines = contents.split(b'\n')
+        start_indices: List[int] = [0]
+
+        for line in lines:
+            start_indices.append(start_indices[-1] + len(line) + 1)
+
+        for term in self.__terms:
+            if term.denylist is not None and any(
+                    r.match(filename) for r in term.denylist):
+                continue
+            if term.allowlist is not None and not any(
+                    r.match(filename) for r in term.allowlist):
+                continue
+            for regexp in term.regexps:
+                for match in regexp.finditer(contents):
+                    found_term = match.group()
+                    lineno = bisect.bisect_left(start_indices, match.start())
+                    col = match.start() - start_indices[lineno] + 1
+                    diagnostics.append(
+                        Diagnostic(
+                            f'{found_term.decode("utf-8")}: {term.message}',
+                            filename=filename,
+                            lineno=lineno + 1,
+                            col=col,
+                            col_end=col + len(found_term)))
+
+        if diagnostics:
+            raise LinterException('Found problematic terms',
+                                  diagnostics=diagnostics,
+                                  fixable=False)
+
+        return SingleResult(contents, [])
+
+    @property
+    def name(self) -> Text:
+        return 'problematic_terms'
 
 
 class VueHTMLParser(HTMLParser):
