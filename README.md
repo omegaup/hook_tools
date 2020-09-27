@@ -20,19 +20,33 @@ Para agregar `hook_tools` a tu repositorio:
 Este es un diccionario de configuración de los linters que se van a correr. Los
 linters soportados (con sus respectivas opciones) son:
 
-* `whitespace`: Elimina molestos espacios en blanco, como espacios al final de
-  la línea, múltiples líneas vacías, saltos de línea estilo Windows.
-* `javascript`: Corre el linter del Google Closure Compiler, seguido de
-  ClangFormat.
-  * `extra_js_linters`: Un arreglo con comandos que se van a correr.
+* `clang-format`: Corre [ClangFormat](https://clang.llvm.org/docs/ClangFormat.html).
 * `html`: Corre HTML Tidy.
   * `strict`: Un bool que indica si se va a correr en modo estricto
+* `javascript`: Corre el linter de [Prettier](https://prettier.io).
+  * `extra_js_linters`: Un arreglo con comandos que se van a correr.
+* `json`: Corre el linter de [Prettier](https://prettier.io).
+* `karel`: Corre el linter de [Prettier](https://prettier.io).
+* `markdown`: Corre el linter de [Prettier](https://prettier.io).
+* `php`: Corre PHP Code Beautifier.
+  * `standard`: Una cadena con la ruta del estándar de phpcbf.
+* `problematic-terms`: Busca términos problemáticos.
+  * `terms`: Una lista de objetos con las siguientes llaves:
+    * `regexps`: Una lista de expresiones regulares a buscar.
+    * `message`: El mensaje a desplegar.
+    * `allowlist`: (Opcional) Una lista de expresiones regulares. Si está
+      definido y _ninguna_ de estas expresiones regulares hace match con el
+      nombre del archivo, el archivo se ignora.
+    * `denylist`: (Opcional) Una lista de expresiones regulares. Si está
+      definido y _alguna_ de estas expresiones regulares hace match con el
+      nombre del archivo, el archivo se ignora.
+* `whitespace`: Elimina molestos espacios en blanco, como espacios al final de
+  la línea, múltiples líneas vacías, saltos de línea estilo Windows.
+* `typescript`: Corre el linter de [Prettier](https://prettier.io).
 * `vue`: Corre los linters de `javascript` y `html` en las distintas secciones
   de un Vue template.
   * `extra_js_linters`: Un arreglo con comandos que se van a correr en la
     sección `<script>..</script>` del template.
-* `php`: Corre PHP Code Beautifier.
-  * `standard`: Una cadena con la ruta del estándar de phpcbf.
 * `python`: Corre pep8 y pylint.
   * `pep8_config`: Una cadena con la ruta del archivo de configuración para
      pep8.
