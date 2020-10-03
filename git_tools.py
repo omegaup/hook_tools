@@ -285,7 +285,15 @@ def parse_arguments(
         help=('commit: Only include files changed between commits\n'
               'file:   If specified, only consider these files'))
 
+    subparsers.add_parser(
+        'ensure-container',
+        help=('Does nothing. '
+              'Allows the container to be downloaded in a separate command.'))
+
     args = parser.parse_args()
+    if args.tool == 'ensure-container':
+        sys.exit(0)
+
     files = get_explicit_file_list(args.commits)
     if not _validate_args(args, files):
         sys.exit(1)
