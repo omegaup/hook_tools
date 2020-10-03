@@ -45,7 +45,14 @@ RUN (cd /nvm && git checkout `git describe --abbrev=0 --tags`)
 RUN (. /nvm/nvm.sh && nvm install v12.18.2 ; nvm use --delete-prefix v12.18.2)
 ENV PATH="/usr/bin/versions/node/v12.18.2/bin:${PATH}"
 RUN npm install -g yarn
-RUN yarn global add prettier@2.1.2 prettier-plugin-karel@1.0.2
+RUN yarn global add \
+        @typescript-eslint/eslint-plugin \
+        @typescript-eslint/parser \
+        eslint \
+        eslint-config-prettier \
+        prettier-plugin-karel@1.0.2 \
+        prettier@2.1.2 \
+        typescript
 RUN mkdir -p /.yarn /.cache && chown 1000:1000 /.yarn /.cache
 
 RUN mkdir -p /src

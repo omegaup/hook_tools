@@ -1,4 +1,5 @@
 '''Linters for various languages.'''
+# pylint: disable=too-many-lines
 
 from __future__ import print_function
 
@@ -6,6 +7,7 @@ from html.parser import HTMLParser
 import bisect
 import dataclasses
 import importlib.util
+import json
 import logging
 import os
 import os.path
@@ -889,6 +891,65 @@ class ClangFormatLinter(Linter):
     @property
     def name(self) -> Text:
         return 'clang-format'
+
+
+class EslintLinter(Linter):
+    '''Runs eslint.'''
+
+    # pylint: disable=R0903
+
+    def __init__(self, options: Optional[Options] = None) -> None:
+        super().__init__()
+        self.__options = options or {}
+
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
+        args = [
+            _which('eslint'),
+            '--fix-dry-run',
+            '--stdin',
+            '--stdin-filename',
+            filename,
+            '--format=json',
+        ]
+        logging.debug('lint_eslint: Running %s', args)
+        result = subprocess.run(args,
+                                check=False,
+                                input=contents,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
+        if result.returncode == 2:
+            raise LinterException(result.stdout.decode('utf-8'), fixable=False)
+
+        reports = json.loads(result.stdout.decode('utf-8'))
+        assert len(reports) == 1, reports
+        report = reports[0]
+
+        if len(report['messages']) > 0:
+            lines = contents.decode('utf-8').split('\n')
+            diagnostics = [
+                Diagnostic(
+                    message=(
+                        f'[eslint] {message["message"]} [{message["ruleId"]}]'
+                    ),
+                    filename=filename,
+                    line=lines[message['line'] - 1],
+                    lineno=message['line'],
+                    col=message['column'],
+                    col_end=message['endColumn'],
+                ) for message in report['messages']
+            ]
+            raise LinterException('Eslint lint errors',
+                                  fixable=False,
+                                  diagnostics=diagnostics)
+        if 'output' in report:
+            # There were fixable errors.
+            return SingleResult(report['output'].encode('utf-8'), ['eslint'])
+
+        return SingleResult(contents, [])
+
+    @property
+    def name(self) -> Text:
+        return 'eslint'
 
 
 class CustomLinter(Linter):

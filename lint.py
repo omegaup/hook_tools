@@ -28,6 +28,7 @@ LinterFactory = Callable[..., linters.Linter]
 
 _LINTER_MAPPING: Dict[Text, LinterFactory] = {
     'clang-format': linters.ClangFormatLinter,
+    'eslint': linters.EslintLinter,
     'html': linters.HTMLLinter,
     'javascript': linters.JavaScriptLinter,
     'json': linters.JsonLinter,
@@ -118,9 +119,9 @@ def _report_linter_results(filename: Text, new_contents: bytes, validate: bool,
                git_tools.COLORS.NORMAL, violations_message),
               file=sys.stderr)
     else:
-        print('Fixing %s%s%s' %
+        print('Fixing %s%s%s (%s)' %
               (git_tools.COLORS.HEADER, filename,
-               git_tools.COLORS.NORMAL),
+               git_tools.COLORS.NORMAL, ', '.join(violations)),
               file=sys.stderr)
         with open(os.path.join(_ROOT, filename), 'wb') as outfile:
             outfile.write(new_contents)
