@@ -236,7 +236,7 @@ def _lint_prettier(contents: bytes, filename: Text) -> bytes:
         '--no-config',
         '--stdin-filepath=%s' % filename
     ]
-    logging.debug('lint_vue: Running %s', args)
+    logging.debug('lint_prettier: Running %s', args)
     result = subprocess.run(args,
                             input=contents,
                             stdout=subprocess.PIPE,
@@ -632,7 +632,9 @@ class VueLinter(Linter):
                                   fixable=False)
 
         new_sections = []
-        for tag, _, starttag, section_contents in sections:
+        for tag, _, starttag, section_contents in sorted(
+                sections,
+                key=lambda x: ['template', 'script', 'style'].index(x[0])):
             try:
                 new_sections.append('%s\n%s\n</%s>' %
                                     (starttag, section_contents.rstrip(), tag))
