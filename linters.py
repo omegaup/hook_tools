@@ -904,7 +904,8 @@ class EslintLinter(Linter):
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         args = [
-            _which('eslint'),
+            _which('npx'),
+            'eslint',
             '--fix-dry-run',
             '--stdin',
             '--stdin-filename',
@@ -935,7 +936,8 @@ class EslintLinter(Linter):
                     line=lines[message['line'] - 1],
                     lineno=message['line'],
                     col=message['column'],
-                    col_end=message['endColumn'],
+                    col_end=(message['endColumn']
+                             if 'endColumn' in message else None),
                 ) for message in report['messages']
             ]
             raise LinterException('Eslint lint errors',
