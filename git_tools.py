@@ -347,13 +347,20 @@ def verify_toolchain(binaries: Mapping[Text, Text]) -> bool:
 
 def _is_single_commit_pushed(args: argparse.Namespace) -> bool:
     '''Returns whether a single commit is being pushed.'''
-    if len(args.commits) != 2:
+    if not args.commits:
+        # This case is where only HEAD is considered, but we don't know what
+        # the merge base is.
         return False
-    return str(args.commits[0]) == subprocess.run(
+    merge_base = str(args.commits[0])
+    if len(args.commits) == 1:
+        pushed_commit = 'HEAD'
+    else:
+        pushed_commit = args.commits[1]
+    return merge_base == subprocess.run(
         [
             '/usr/bin/git',
             'rev-parse',
-            '%s^' % args.commits[1],
+            '%s^' % pushed_commit,
         ],
         universal_newlines=True,
         check=True,
