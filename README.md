@@ -42,11 +42,14 @@ linters soportados (con sus respectivas opciones) son:
       nombre del archivo, el archivo se ignora.
 * `whitespace`: Elimina molestos espacios en blanco, como espacios al final de
   la línea, múltiples líneas vacías, saltos de línea estilo Windows.
+* `style`: Corre [stylelint](https://stylelint.io/).
 * `typescript`: Corre el linter de [Prettier](https://prettier.io).
 * `vue`: Corre los linters de `javascript` y `html` en las distintas secciones
   de un Vue template.
   * `extra_js_linters`: Un arreglo con comandos que se van a correr en la
     sección `<script>..</script>` del template.
+  * `stylelint`: Un booleano que determina si también se va a correr stylelint
+    en la sección `<style>..</style>` del template.
 * `python`: Corre pep8 y pylint.
   * `pep8_config`: Una cadena con la ruta del archivo de configuración para
      pep8.
