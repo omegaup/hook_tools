@@ -37,8 +37,8 @@ def _find_pip_tool(name: Text) -> Text:
 
 def _which(program: Text) -> Text:
     '''Looks for |program| in $PATH. Similar to UNIX's `which` command.'''
-    for path in os.environ['PATH'].split(os.pathsep):
-        exe_file = os.path.join(path.strip('"'), program)
+    for path in ['./node_modules/.bin'] + os.environ['PATH'].split(os.pathsep):
+        exe_file = os.path.abspath(os.path.join(path.strip('"'), program))
         if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
             return exe_file
     raise Exception('`%s` not found' % program)
@@ -265,6 +265,62 @@ def _lint_prettier(contents: bytes, filename: Text) -> bytes:
                               diagnostics=diagnostics)
 
     return result.stdout
+
+
+def _lint_stylelint(contents: bytes, filename: Text) -> bytes:
+    '''Runs stylelint on |contents| .'''
+    args = [
+        _which('stylelint'),
+        '--stdin',
+        '--stdin-filename=%s' % filename,
+        '--fix',
+    ]
+    logging.debug('lint_style: Running %s', args)
+    result = subprocess.run(args,
+                            input=contents,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            check=False)
+
+    if result.returncode == 0:
+        # Everything is correct!
+        return contents
+
+    if result.returncode != 2:
+        # stylelint returns 1 if something went catastrophically wrong, or 78
+        # if there was a problem with the configuration. This means that the
+        # only return code that we expect right now is 2, which is returned if
+        # there were lint errors.
+        raise LinterException(result.stdout.decode('utf-8'))
+
+    if result.stdout != contents:
+        # If stylelint was able to automatically fix anything, we go with
+        # that.
+        return result.stdout
+
+    args = [
+        _which('stylelint'),
+        '--stdin',
+        '--stdin-filename=%s' % filename,
+        '--formatter=unix',
+    ]
+    logging.debug('lint_style: Running %s', args)
+    result = subprocess.run(args,
+                            input=contents,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            check=False)
+
+    if result.returncode != 0:
+        raise LinterException(
+            'lint errors',
+            fixable=False,
+            diagnostics=_process_diagnostics_output(
+                filename,
+                lines=contents.decode('utf-8').split('\n'),
+                output=result.stdout.decode('utf-8').strip()))
+
+    return contents
 
 
 class Linter:
@@ -649,14 +705,36 @@ class VueLinter(Linter):
                                   (len(sections), len(new_sections)),
                                   fixable=False)
 
+        contents = '\n\n'.join(new_sections).encode('utf-8') + b'\n'
+        if self.__options.get('stylelint', False):
+            contents = _lint_stylelint(contents, filename)
+
         # Finally, run prettier on the whole thing.
-        return SingleResult(
-            _lint_prettier('\n\n'.join(new_sections).encode('utf-8') + b'\n',
-                           filename), ['vue'])
+        return SingleResult(_lint_prettier(contents, filename), ['vue'])
 
     @property
     def name(self) -> Text:
         return 'vue'
+
+
+class StyleLinter(Linter):
+    '''A linter for .css/.scss files.'''
+
+    # pylint: disable=R0903
+
+    def __init__(self, options: Optional[Options] = None) -> None:
+        super().__init__()
+        self.__options = options or {}
+
+    def run_one(self, filename: str, contents: bytes) -> SingleResult:
+        contents = _lint_stylelint(contents, filename)
+
+        # Finally, run prettier on the whole thing.
+        return SingleResult(_lint_prettier(contents, filename), ['style'])
+
+    @property
+    def name(self) -> Text:
+        return 'style'
 
 
 class HTMLLinter(Linter):

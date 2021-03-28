@@ -37,6 +37,7 @@ _LINTER_MAPPING: Dict[Text, LinterFactory] = {
     'php': linters.PHPLinter,
     'problematic-terms': linters.ProblematicTermsLinter,
     'python': linters.PythonLinter,
+    'style': linters.StyleLinter,
     'typescript': linters.TypeScriptLinter,
     'vue': linters.VueLinter,
     'whitespace': linters.WhitespaceLinter,

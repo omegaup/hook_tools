@@ -52,6 +52,8 @@ RUN yarn global add \
         eslint-config-prettier \
         prettier-plugin-karel@1.0.2 \
         prettier@2.1.2 \
+        stylelint-config-standard@21.0.0 \
+        stylelint@13.12.0 \
         typescript
 RUN mkdir -p /.yarn /.cache && chown 1000:1000 /.yarn /.cache
 
