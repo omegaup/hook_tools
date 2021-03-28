@@ -51,6 +51,11 @@ class DiagnosticsOutput(enum.Enum):
     STDERR = 'stderr'
     GITHUB = 'github'
 
+    @staticmethod
+    def values() -> Sequence['DiagnosticsOutput']:
+        '''Returns the possible values of the enum.'''
+        return (DiagnosticsOutput.STDERR, DiagnosticsOutput.GITHUB)
+
 
 def _get_command_name(command_name: Optional[Text]) -> List[Text]:
     '''Returns the name of the command needed to invoke this script.'''
@@ -274,7 +279,7 @@ def main() -> None:
                 '--diagnostics-output',
                 default=DiagnosticsOutput.STDERR,
                 type=DiagnosticsOutput,
-                choices=DiagnosticsOutput.__members__.values(),
+                choices=DiagnosticsOutput.values(),
                 help='How to display diagnostics provided by the linters.'),
         ])
     if not args.files:
