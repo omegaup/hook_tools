@@ -11,7 +11,6 @@ import enum
 import json
 import logging
 import os.path
-import pipes
 import re
 import sys
 from typing import (Any, Callable, Dict, Iterator, List, Mapping, Optional,
@@ -55,18 +54,6 @@ class DiagnosticsOutput(enum.Enum):
     def values() -> Sequence['DiagnosticsOutput']:
         '''Returns the possible values of the enum.'''
         return (DiagnosticsOutput.STDERR, DiagnosticsOutput.GITHUB)
-
-
-def _get_command_name(command_name: Optional[Text]) -> List[Text]:
-    '''Returns the name of the command needed to invoke this script.'''
-    if command_name is not None:
-        return [command_name]
-    if os.environ.get('DOCKER') == 'true':
-        return [
-            '/usr/bin/docker', 'run', '--rm', '-v', '"$PWD:/src"', '-v',
-            '"$PWD:$PWD"', 'omegaup/hook_tools'
-        ]
-    return [pipes.quote(sys.argv[0])]
 
 
 def _run_linter_one(
@@ -332,9 +319,8 @@ def main() -> None:
                 sys.exit(1)
             _report_error(('Linter validation errors. '
                            'Please run\n\n    %s\n\nto fix them.') %
-                          git_tools.get_fix_commandline(
-                              _get_command_name(args.command_name), args,
-                              file_violations), args.diagnostics_output)
+                          git_tools.get_fix_commandline(args, file_violations),
+                          args.diagnostics_output)
         else:
             print('Files written to working directory. '
                   '%sPlease commit them before pushing.%s' % (

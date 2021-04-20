@@ -5,12 +5,13 @@ Utility functions used to write git hooks.
 '''
 
 import argparse
+import itertools
 import logging
 import multiprocessing
 import os
 import os.path
-import pipes
 import re
+import shlex
 import subprocess
 import sys
 from typing import (Any, Iterable, Iterator, List, Mapping, Optional, Sequence,
@@ -310,6 +311,18 @@ def parse_arguments(
     return args
 
 
+def _get_quoted_command_name(command_name: Optional[Text]) -> List[Text]:
+    '''Returns the name of the command needed to invoke this script.'''
+    if command_name is not None:
+        return [shlex.quote(command_name)]
+    if os.environ.get('DOCKER') == 'true':
+        return [
+            '/usr/bin/docker', 'run', '--rm', '-v', '"$PWD:/src"', '-v',
+            '"$PWD:$PWD"', 'omegaup/hook_tools'
+        ]
+    return [shlex.quote(sys.argv[0])]
+
+
 def _get_fix_args(prog_args: List[Text],
                   args: argparse.Namespace,
                   files: Optional[Iterable[Text]] = None) -> Sequence[Text]:
@@ -324,13 +337,14 @@ def _get_fix_args(prog_args: List[Text],
     return params
 
 
-def get_fix_commandline(prog_args: List[Text],
-                        args: argparse.Namespace,
+def get_fix_commandline(args: argparse.Namespace,
                         files: Optional[Iterable[Text]] = None) -> Text:
     '''Gets the commandline the developer must run to fix violations.'''
-    full_args = (
-        prog_args + [pipes.quote(p) for p in _get_fix_args([], args, files)])
-    return ' '.join(full_args)
+    return ''.join(
+        itertools.chain(
+            _get_quoted_command_name(args.command_name),
+            (shlex.quote(p) for p in _get_fix_args([], args, files)),
+        ))
 
 
 def verify_toolchain(binaries: Mapping[Text, Text]) -> bool:
