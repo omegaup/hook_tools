@@ -342,7 +342,8 @@ def get_fix_commandline(args: argparse.Namespace,
     '''Gets the commandline the developer must run to fix violations.'''
     return ''.join(
         itertools.chain(
-            _get_quoted_command_name(args.command_name),
+            _get_quoted_command_name(args.command_name if 'command_name' in
+                                     args else None),
             (shlex.quote(p) for p in _get_fix_args([], args, files)),
         ))
 
