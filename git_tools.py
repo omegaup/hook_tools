@@ -340,7 +340,7 @@ def _get_fix_args(prog_args: List[Text],
 def get_fix_commandline(args: argparse.Namespace,
                         files: Optional[Iterable[Text]] = None) -> Text:
     '''Gets the commandline the developer must run to fix violations.'''
-    return ''.join(
+    return ' '.join(
         itertools.chain(
             _get_quoted_command_name(args.command_name if 'command_name' in
                                      args else None),
