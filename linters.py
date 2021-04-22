@@ -985,7 +985,7 @@ class EslintLinter(Linter):
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         args = [
             _which('npx'),
-            'eslint',
+            'eslint_d',
             '--fix-dry-run',
             '--stdin',
             '--stdin-filename',

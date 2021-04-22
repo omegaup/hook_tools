@@ -49,13 +49,15 @@ RUN yarn global add \
         @typescript-eslint/eslint-plugin \
         @typescript-eslint/parser \
         eslint \
+        eslint_d \
         eslint-config-prettier \
         prettier-plugin-karel@1.0.2 \
         prettier@2.1.2 \
         stylelint-config-standard@21.0.0 \
         stylelint@13.12.0 \
         typescript
-RUN mkdir -p /.yarn /.cache && chown 1000:1000 /.yarn /.cache
+RUN useradd --uid 1000 --create-home ubuntu
+RUN mkdir -p /.yarn /.cache && chown ubuntu:ubuntu /.yarn /.cache
 
 RUN mkdir -p /src
 WORKDIR /src
@@ -66,5 +68,5 @@ ENV LANG=en_US.UTF-8
 RUN mkdir -p /hook_tools
 ADD ./ /hook_tools
 
-USER 1000
+USER ubuntu
 ENTRYPOINT ["/usr/bin/python3", "/hook_tools/lint.py"]
