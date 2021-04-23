@@ -13,9 +13,11 @@ import os
 import os.path
 import re
 import shlex
+import socket
 import subprocess
 import sys
 import tempfile
+import threading
 from typing import (Any, Callable, Dict, List, Mapping, NamedTuple, Optional,
                     Text, Sequence, Tuple)
 
@@ -981,53 +983,81 @@ class EslintLinter(Linter):
     def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
         self.__options = options or {}
+        self.__lock = threading.Lock()
+        self.__eslint_state: Optional[Tuple[int, str]] = None
+
+    def _get_port_and_token(self) -> Tuple[int, str]:
+        if self.__eslint_state is None:
+            with self.__lock:
+                if self.__eslint_state is None:
+                    args = [
+                        _which('npx'),
+                        'eslint_d',
+                        'start',
+                    ]
+                    logging.debug('lint_eslint: Running %s', args)
+                    subprocess.check_call(args,
+                                          env={
+                                              **os.environ, 'HOME': '/tmp'
+                                          })
+                    with open('/tmp/.eslint_d') as portfile:
+                        port_str, token = portfile.read().strip().split()
+                    self.__eslint_state = (int(port_str), token)
+        return self.__eslint_state
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
-        args = [
-            _which('npx'),
-            'eslint_d',
-            '--fix-dry-run',
-            '--stdin',
-            '--stdin-filename',
-            filename,
-            '--format=json',
-        ]
-        logging.debug('lint_eslint: Running %s', args)
-        result = subprocess.run(args,
-                                check=False,
-                                input=contents,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT)
-        if result.returncode == 2:
-            raise LinterException(result.stdout.decode('utf-8'), fixable=False)
-
-        reports = json.loads(result.stdout.decode('utf-8'))
-        assert len(reports) == 1, reports
-        report = reports[0]
-
-        if len(report['messages']) > 0:
-            lines = contents.decode('utf-8').split('\n')
-            diagnostics = [
-                Diagnostic(
-                    message=(
-                        f'[eslint] {message["message"]} [{message["ruleId"]}]'
-                    ),
-                    filename=filename,
-                    line=lines[message['line'] - 1],
-                    lineno=message['line'],
-                    col=message['column'],
-                    col_end=(message['endColumn']
-                             if 'endColumn' in message else None),
-                ) for message in report['messages']
+        port, token = self._get_port_and_token()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.connect(('localhost', port))
+            args = [
+                token,
+                os.getcwd(),
+                '--fix-dry-run',
+                '--stdin',
+                '--stdin-filename',
+                filename,
+                '--format=json',
+                '--cache',
             ]
-            raise LinterException('Eslint lint errors',
-                                  fixable=False,
-                                  diagnostics=diagnostics)
-        if 'output' in report:
-            # There were fixable errors.
-            return SingleResult(report['output'].encode('utf-8'), ['eslint'])
+            logging.debug('lint_eslint: Running %s', args)
+            sock.sendall(shlex.join(args).encode('utf-8') + b'\n')
+            sock.sendall(contents)
+            sock.shutdown(socket.SHUT_WR)
 
-        return SingleResult(contents, [])
+            stdout_chunks: List[bytes] = []
+            while True:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                stdout_chunks.append(chunk)
+            stdout = b''.join(stdout_chunks)
+            reports = json.loads(stdout.decode('utf-8'))
+            assert len(reports) == 1, reports
+            report = reports[0]
+
+            if len(report['messages']) > 0:
+                lines = contents.decode('utf-8').split('\n')
+                diagnostics = [
+                    Diagnostic(
+                        message=(f'[eslint] {message["message"]} '
+                                 f'[{message["ruleId"]}]'),
+                        filename=filename,
+                        line=lines[message['line'] - 1],
+                        lineno=message['line'],
+                        col=message['column'],
+                        col_end=(message['endColumn']
+                                 if 'endColumn' in message else None),
+                    ) for message in report['messages']
+                ]
+                raise LinterException('Eslint lint errors',
+                                      fixable=False,
+                                      diagnostics=diagnostics)
+            if 'output' in report:
+                # There were fixable errors.
+                return SingleResult(report['output'].encode('utf-8'),
+                                    ['eslint'])
+
+            return SingleResult(contents, [])
 
     @property
     def name(self) -> Text:
