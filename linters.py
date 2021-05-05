@@ -1030,8 +1030,15 @@ class EslintLinter(Linter):
                 if not chunk:
                     break
                 stdout_chunks.append(chunk)
-            stdout = b''.join(stdout_chunks)
-            reports = json.loads(stdout.decode('utf-8'))
+            stdout = (b''.join(stdout_chunks)).decode('utf-8')
+            try:
+                reports = json.loads(stdout)
+            except json.decoder.JSONDecodeError as jde:
+                # If there's extra data, let's just ignore it and try once
+                # more.
+                if jde.msg != 'Extra data':
+                    raise
+                reports = json.loads(stdout[:jde.pos])
             assert len(reports) == 1, reports
             report = reports[0]
 
