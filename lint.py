@@ -13,6 +13,7 @@ import logging
 import os.path
 import re
 import sys
+import traceback
 from typing import (Any, Callable, Dict, Iterator, List, Mapping, Optional,
                     Sequence, Set, Text, Tuple)
 
@@ -62,7 +63,24 @@ def _run_linter_one(
         diagnostics_output: DiagnosticsOutput) -> Tuple[Optional[Text], bool]:
     '''Runs the linter against one file.'''
     try:
-        new_contents, violations = linter.run_one(filename, contents)
+        try:
+            new_contents, violations = linter.run_one(filename, contents)
+        except linters.LinterException:
+            raise
+        except:  # noqa: bare-except
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            raise linters.LinterException(
+                'Linter error',
+                fixable=False,
+                diagnostics=[
+                    linters.Diagnostic(
+                        message=''.join(
+                            traceback.format_exception(exc_type, exc_value,
+                                                       exc_traceback)),
+                        filename=filename,
+                    ),
+                ],
+            ) from None
     except linters.LinterException as lex:
         _report_linter_exception(filename, lex, diagnostics_output)
         return filename, lex.fixable
@@ -80,9 +98,26 @@ def _run_linter_all(
         diagnostics_output: DiagnosticsOutput
 ) -> Sequence[Tuple[Optional[Text], bool]]:
     try:
-        new_file_contents, original_contents, violations = linter.run_all(
-            files,
-            lambda filename: git_tools.file_contents(args, _ROOT, filename))
+        try:
+            new_file_contents, original_contents, violations = linter.run_all(
+                files, lambda filename: git_tools.file_contents(
+                    args, _ROOT, filename))
+        except linters.LinterException:
+            raise
+        except:  # noqa: bare-except
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            raise linters.LinterException(
+                'Linter error',
+                fixable=False,
+                diagnostics=[
+                    linters.Diagnostic(
+                        message=''.join(
+                            traceback.format_exception(exc_type, exc_value,
+                                                       exc_traceback)),
+                        filename=', '.join(files),
+                    ),
+                ],
+            ) from None
     except linters.LinterException as lex:
         _report_linter_exception(', '.join(files), lex, diagnostics_output)
         return [(filename, lex.fixable) for filename in files]
@@ -190,11 +225,11 @@ def _run_linter(
                  for filename in filenames)
     with concurrent.futures.ThreadPoolExecutor(
             max_workers=args.jobs) as executor:
-        futures = []
-        for filename, contents in files.items():
-            futures.append(
-                executor.submit(_run_linter_one, linter, filename, contents,
-                                validate_only, diagnostics_output))
+        futures = [
+            executor.submit(_run_linter_one, linter, filename, contents,
+                            validate_only, diagnostics_output)
+            for filename, contents in files.items()
+        ]
         results = [
             f.result() for f in concurrent.futures.as_completed(futures)
         ]
