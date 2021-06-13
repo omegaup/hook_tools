@@ -19,7 +19,7 @@ import sys
 import tempfile
 import threading
 from typing import (Any, Callable, Dict, List, Mapping, NamedTuple, Optional,
-                    Text, Sequence, Tuple)
+                    Pattern, Text, Sequence, Tuple)
 
 if __name__ == "__main__" and __package__ is None:
     sys.path.append(os.path.dirname(sys.path[0]))
@@ -69,10 +69,10 @@ class MultipleResults(NamedTuple):
 
 class ProblematicTerm(NamedTuple):
     '''Represents a list of problematic terms/messages associated with them.'''
-    regexps: Sequence[re.Pattern]
+    regexps: Sequence[Pattern[bytes]]
     message: str
-    allowlist: Optional[Sequence[re.Pattern]]
-    denylist: Optional[Sequence[re.Pattern]]
+    allowlist: Optional[Sequence[Pattern[str]]]
+    denylist: Optional[Sequence[Pattern[str]]]
 
 
 @dataclasses.dataclass
@@ -522,8 +522,8 @@ class ProblematicTermsLinter(Linter):
                 raise ValueError(f'{term} is not a list of string')
             if not all(isinstance(regexp, str) for regexp in term['regexps']):
                 raise ValueError(f'{term} is not a list of string')
-            allowlist: Optional[Sequence[re.Pattern]] = None
-            denylist: Optional[Sequence[re.Pattern]] = None
+            allowlist: Optional[Sequence[Pattern[str]]] = None
+            denylist: Optional[Sequence[Pattern[str]]] = None
             if 'allowlist' in term:
                 allowlist = [
                     re.compile(pattern) for pattern in term['allowlist']
@@ -921,7 +921,7 @@ class PythonLinter(Linter):
                                                     toolname='mypy'))
 
         if diagnostics:
-            diagnostics.sort(key=lambda d: d.lineno)
+            diagnostics.sort(key=lambda d: d.lineno or 0)
             raise LinterException('Python lint errors',
                                   fixable=False,
                                   diagnostics=diagnostics)
