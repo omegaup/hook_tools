@@ -38,6 +38,7 @@ RUN curl --location \
         https://github.com/squizlabs/PHP_CodeSniffer/releases/download/3.5.6/phpcs.phar \
         --output /usr/bin/phpcs && \
     chmod 755 /usr/bin/phpcs
+ENV PATH="/src/vendor/bin:${PATH}"
 
 # JavaScript support.
 RUN git clone https://github.com/creationix/nvm.git /nvm

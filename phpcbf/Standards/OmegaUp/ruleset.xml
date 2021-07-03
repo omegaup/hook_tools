@@ -4,6 +4,9 @@
 
 	<rule ref="OmegaUp.Classes.ClassDeclaration.OpenBraceSameLine"/>
 	<rule ref="OmegaUp.Classes.ClassDeclaration.NoBlankLineAfter" />
+	<rule ref="OmegaUp.Classes.ClassDeclaration.MissingBrace">
+		<severity>0</severity>
+	</rule>
 	<rule ref="OmegaUp.Formatting.Cast.DisallowedCast" />
 	<rule ref="OmegaUp.Formatting.Cast.NullComparison.NullComparison" />
 	<rule ref="OmegaUp.Functions.MultiLineFunctionDeclaration">
@@ -28,29 +31,43 @@
 		<exclude name="PSR1.Files.SideEffects.FoundWithSymbols"/>
 		<exclude name="PSR1.Methods.CamelCapsMethodName.NotCamelCaps"/>
 		<exclude name="PSR12.Files.FileHeader.SpacingAfterBlock"/>
+		<exclude name="Generic.Files.LineLength.TooLong"/>
+		<exclude name="PSR2.Classes.PropertyDeclaration.Underscore"/>
+		<exclude name="PSR12.Properties.ConstantVisibility.NotFound"/>
 	</rule>
 
 	<!-- Braces on the same line -->
 	<rule ref="Generic.Functions.OpeningFunctionBraceKernighanRitchie"/>
 
-	 <!-- There MUST NOT be trailing whitespace. EVER. -->
-	 <rule ref="Squiz.WhiteSpace.SuperfluousWhitespace">
-		 <properties>
-			 <property name="ignoreBlankLines" value="false"/>
-		 </properties>
-	 </rule>
+	<!-- There MUST NOT be trailing whitespace. EVER. -->
+	<rule ref="Squiz.WhiteSpace.SuperfluousWhitespace">
+		<properties>
+			<property name="ignoreBlankLines" value="false"/>
+		</properties>
+	</rule>
 
-	 <!-- Avoid double-quoted strings -->
-	 <rule ref="Squiz.Strings.DoubleQuoteUsage.NotRequired">
-		 <exclude name="Squiz.Strings.DoubleQuoteUsage.ContainsVar"/>
-	 </rule>
+	<!-- Avoid double-quoted strings -->
+	<rule ref="Squiz.Strings.DoubleQuoteUsage.NotRequired">
+		<exclude name="Squiz.Strings.DoubleQuoteUsage.ContainsVar"/>
+	</rule>
 
-	 <!-- Don't comment out code -->
-	 <rule ref="Squiz.PHP.CommentedOutCode"/>
+	<!-- Don't comment out code -->
+	<rule ref="Squiz.PHP.CommentedOutCode">
+		<severity>0</severity>
+	</rule>
 
-	 <!-- eval is evil -->
-	 <rule ref="Squiz.PHP.Eval" />
+	<!-- eval is evil -->
+	<rule ref="Squiz.PHP.Eval" />
 
-	 <!-- Only the short array syntax is valid. -->
-	 <rule ref="Generic.Arrays.DisallowLongArraySyntax"/>
+	<!-- Only the short array syntax is valid. -->
+	<rule ref="Generic.Arrays.DisallowLongArraySyntax"/>
+
+	<rule ref="VariableAnalysis.CodeAnalysis.VariableAnalysis">
+		<properties>
+			<property name="ignoreUnusedRegexp" value="/^_/"/>
+			<property name="allowUnusedFunctionParameters" value="true"/>
+			<property name="validUndefinedVariableNames" value="smarty"/>
+			<property name="sitePassByRefFunctions" value="proc_open:3"/>
+		</properties>
+	</rule>
 </ruleset>

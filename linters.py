@@ -802,7 +802,7 @@ class PHPLinter(Linter):
             return SingleResult(new_contents, ['php'])
 
         # Even if phpcbf didn't find anything, phpcs might.
-        args = ([_which('phpcs'), '-n', '-s', '-q'] + self.__common_args
+        args = ([_which('phpcs'), '-s', '-q'] + self.__common_args
                 + ['--stdin-path=%s' % filename, '--report=emacs'])
         logging.debug('lint_php: Running %s', args)
         result = subprocess.run(args,
