@@ -63,7 +63,6 @@ class TestLinters(unittest.TestCase):
         self.assertEqual(linter.run_one('test.txt', b'Hello, World!\n'),
                          linters.SingleResult(b'HELLO, WORLD!\n', ['command']))
 
-    @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
     def test_javascript(self) -> None:
         """Tests JavaScriptLinter."""
 
@@ -79,7 +78,6 @@ class TestLinters(unittest.TestCase):
             linters.SingleResult(b'#!/usr/bin/node\nreturn;\n',
                                  ['javascript']))
 
-    @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
     def test_vue(self) -> None:
         """Tests VueLinter."""
 
@@ -107,7 +105,6 @@ class TestLinters(unittest.TestCase):
             linters.SingleResult(b'<template>\n  <b></b>\n</template>\n',
                                  ['vue']))
 
-    @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
     def test_html(self) -> None:
         """Tests HTMLLinter."""
 
@@ -122,7 +119,6 @@ class TestLinters(unittest.TestCase):
                 b'  </head>\n  <body>\n    <input />\n  </body>\n</html>\n',
                 ['html']))
 
-    @unittest.skipIf(os.environ.get('TRAVIS') == 'true', 'Travis CI')
     def test_php(self) -> None:
         """Tests PHPLinter."""
 

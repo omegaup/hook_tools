@@ -777,13 +777,12 @@ class PHPLinter(Linter):
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         args = ([_which('phpcbf')] + self.__common_args
                 + ['--stdin-path=%s' % filename])
-        logging.debug('lint_php: Running %s', args)
+        logging.debug('lint_php: Running %s', shlex.join(args))
         result = subprocess.run(args,
                                 input=contents,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
-                                check=False,
-                                cwd=git_tools.HOOK_TOOLS_ROOT)
+                                check=False)
 
         if result.returncode != 0:
             logging.debug('lint_php: Return code %d, stderr = %s',
@@ -804,13 +803,12 @@ class PHPLinter(Linter):
         # Even if phpcbf didn't find anything, phpcs might.
         args = ([_which('phpcs'), '-s', '-q'] + self.__common_args
                 + ['--stdin-path=%s' % filename, '--report=emacs'])
-        logging.debug('lint_php: Running %s', args)
+        logging.debug('lint_php: Running %s', shlex.join(args))
         result = subprocess.run(args,
                                 input=contents,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE,
-                                check=False,
-                                cwd=git_tools.HOOK_TOOLS_ROOT)
+                                check=False)
 
         if result.returncode != 0:
             logging.debug('lint_php: Return code %d, stdout = %s, stderr = %s',
