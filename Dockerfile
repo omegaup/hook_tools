@@ -31,14 +31,16 @@ RUN python3 -m pip install --upgrade pip && \
         pycodestyle==2.6.0 \
         Jinja2==2.11.2 \
         pyparsing==2.4.7 \
-        mypy==0.770 && \
+        mypy==0.770 \
+        pika-stubs \
+        pytest-stub && \
     mkdir -p /.pylint.d && chown 1000:1000 /.pylint.d
 
 # JavaScript support.
 RUN git clone https://github.com/creationix/nvm.git /nvm && \
     (cd /nvm && git checkout `git describe --abbrev=0 --tags`) && \
-    (. /nvm/nvm.sh && nvm install v12.18.2 ; nvm use --delete-prefix v12.18.2)
-ENV PATH="/usr/bin/versions/node/v12.18.2/bin:${PATH}"
+    (. /nvm/nvm.sh && nvm install v12.22.0 ; nvm use --delete-prefix v12.22.0)
+ENV PATH="/usr/bin/versions/node/v12.22.0/bin:${PATH}"
 RUN npm install -g yarn && \
     yarn global add \
         @typescript-eslint/eslint-plugin \
