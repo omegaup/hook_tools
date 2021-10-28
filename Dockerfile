@@ -37,8 +37,7 @@ RUN python3 -m pip install --upgrade pip && \
     mkdir -p /.pylint.d && chown 1000:1000 /.pylint.d
 
 # JavaScript support.
-RUN git clone https://github.com/creationix/nvm.git /nvm && \
-    (cd /nvm && git checkout `git describe --abbrev=0 --tags`) && \
+RUN git clone https://github.com/creationix/nvm.git /nvm --branch=v0.38.0
     (. /nvm/nvm.sh && nvm install v12.18.2 ; nvm use --delete-prefix v12.18.2)
 ENV PATH="/usr/bin/versions/node/v12.18.2/bin:${PATH}"
 RUN npm install -g yarn && \
