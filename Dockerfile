@@ -35,22 +35,21 @@ RUN python3 -m pip install --upgrade pip && \
     mkdir -p /.pylint.d && chown 1000:1000 /.pylint.d
 
 # JavaScript support.
-RUN git clone https://github.com/creationix/nvm.git /nvm && \
-    (cd /nvm && git checkout `git describe --abbrev=0 --tags`) && \
+RUN git clone https://github.com/creationix/nvm.git /nvm --branch=v0.38.0 && \
     (. /nvm/nvm.sh && nvm install v12.18.2 ; nvm use --delete-prefix v12.18.2)
 ENV PATH="/usr/bin/versions/node/v12.18.2/bin:${PATH}"
 RUN npm install -g yarn && \
     yarn global add \
-        @typescript-eslint/eslint-plugin \
-        @typescript-eslint/parser \
-        eslint \
-        eslint_d \
-        eslint-config-prettier \
+        @typescript-eslint/eslint-plugin@4.28.1 \
+        @typescript-eslint/parser@4.28.1 \
+        eslint@7.30.0 \
+        eslint_d@10.1.3 \
+        eslint-config-prettier@8.3.0 \
         prettier-plugin-karel@1.0.2 \
         prettier@2.1.2 \
         stylelint-config-standard@21.0.0 \
         stylelint@13.12.0 \
-        typescript
+        typescript@4.3.5
 
 RUN useradd --uid 1000 --create-home ubuntu && \
     mkdir -p /.yarn /.cache && chown ubuntu:ubuntu /.yarn /.cache && \
