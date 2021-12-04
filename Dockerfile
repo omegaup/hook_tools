@@ -33,7 +33,8 @@ RUN python3 -m pip install --upgrade pip && \
         pyparsing==2.4.7 \
         mypy==0.770 \
         pika-stubs==0.1.3 \
-        pytest-stub==1.1.0 && \
+        pytest-stub==1.1.0 \
+        omegaup==1.4.0 && \
     mkdir -p /.pylint.d && chown 1000:1000 /.pylint.d
 
 # JavaScript support.
