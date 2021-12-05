@@ -48,7 +48,7 @@ def _which(program: Text) -> Text:
 
 _TIDY_PATH = os.path.join(git_tools.HOOK_TOOLS_ROOT, 'tidy')
 _PRETTIER_RE = re.compile(r'^(?:[^\s:]+\s*)?[^\s:]+: (.*) \((\d+):(\d+)\)\s*$')
-_DIAGNOSTIC_RE = re.compile(r'^[^:\s]+:(\d+):(\d+): (.*)$')
+_DIAGNOSTIC_RE = re.compile(r'^([^:\s]+):(\d+):(\d+): (.*)$')
 
 Options = Mapping[str, Any]
 ContentsCallback = Callable[[str], bytes]
@@ -128,14 +128,22 @@ def _process_diagnostics_output(
         match = _DIAGNOSTIC_RE.match(line.strip())
         if not match:
             continue
+        if os.path.basename(match.group(1)) != os.path.basename(filename):
+            # Some diagnostics will refer to other code locations, maybe in
+            # other files.
+            continue
+        highlighted_line = ''
+        lineno = int(match.group(2))
+        if len(lines) >= lineno:
+            highlighted_line = lines[lineno - 1].rstrip()
         diagnostics.append(
             Diagnostic(
-                (f'[{toolname}] {match.group(3)}'
-                 if toolname else match.group(3)),
+                (f'[{toolname}] {match.group(4)}'
+                 if toolname else match.group(4)),
                 filename=filename,
-                lineno=int(match.group(1)),
-                line=lines[int(match.group(1)) - 1].rstrip(),
-                col=int(match.group(2)) or None,
+                lineno=lineno,
+                line=highlighted_line,
+                col=int(match.group(3)) or None,
             ))
     return diagnostics
 
