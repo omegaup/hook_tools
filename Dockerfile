@@ -5,17 +5,20 @@ MAINTAINER Luis Héctor Chávez <lhchavez@omegaup.com>
 RUN ln -snf /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
      echo Etc/UTC > /etc/timezone && \
     apt-get update -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+        software-properties-common \
+        && \
+    add-apt-repository ppa:ondrej/php && \
+    apt-get update -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         clang-format \
         curl \
         git \
         locales \
-        php-pear \
-        php7.4-cli \
-        php7.4-json \
-        php7.4-mbstring \
-        php7.4-xml \
-        php7.4-zip \
+        php8.0-cli \
+        php8.0-mbstring \
+        php8.0-xml \
+        php8.0-zip \
         python3-pip \
         python3-setuptools \
         python3-six \
@@ -59,9 +62,8 @@ RUN useradd --uid 1000 --create-home ubuntu && \
     mkdir -p /src /hook_tools
 
 # PHP support.
-RUN curl --location \
-        https://raw.githubusercontent.com/composer/getcomposer.org/76a7060ccb93902cd7576b67264ad91c8a2700e2/web/installer | \
-      php -- --quiet --install-dir=/usr/bin --filename=composer
+RUN curl -sL https://getcomposer.org/download/2.1.14/composer.phar -o /usr/bin/composer && \
+    chmod +x /usr/bin/composer
 ENV PATH="/src/vendor/bin:/hook_tools/vendor/bin:${PATH}"
 
 WORKDIR /src
