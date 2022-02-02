@@ -1098,9 +1098,8 @@ class CustomLinter(Linter):
             self.__module_path)
         if custom_linter_module_spec is None:
             raise RuntimeError("Cannot find module")
-        else:
-            custom_linter_module = importlib.util.module_from_spec(
-                custom_linter_module_spec)
+        custom_linter_module = importlib.util.module_from_spec(
+            custom_linter_module_spec)
         custom_linter_module_spec.loader.exec_module(  # type: ignore
             custom_linter_module)
         self.__instance = getattr(custom_linter_module,
