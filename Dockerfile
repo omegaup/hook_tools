@@ -32,7 +32,8 @@ RUN python3 -m pip install --upgrade pip && \
     python3 -m pip install \
         pylint==2.5.3 \
         pycodestyle==2.6.0 \
-        Jinja2==2.11.2 \
+        Jinja2==3.0.3 \
+        types-requests==2.27.8 \
         pyparsing==2.4.7 \
         mypy==0.770 \
         pika-stubs==0.1.3 \
