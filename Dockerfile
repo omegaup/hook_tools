@@ -22,6 +22,7 @@ RUN ln -snf /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
         python3-pip \
         python3-setuptools \
         python3-six \
+        python3.8-venv \
         unzip && \
     rm -rf /var/lib/apt/lists/* && \
     /usr/sbin/locale-gen en_US.UTF-8 && \
