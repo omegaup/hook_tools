@@ -44,6 +44,12 @@ class TestLinters(unittest.TestCase):
                                  ['empty lines before a closing brace']))
 
         self.assertEqual(
+            linter.run_one('test.txt', 'hello \u200b\n'.encode('utf-8')),
+            linters.SingleResult(b'hello\n', [
+                'trailing whitespace',
+            ]))
+
+        self.assertEqual(
             linter.run_one('test.txt', b'function() {\r\n\n\n// \n\n}\n'),
             linters.SingleResult(b'function() {\n//\n}\n', [
                 'Windows-style EOF',

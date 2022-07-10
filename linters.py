@@ -28,6 +28,15 @@ if __name__ == "__main__" and __package__ is None:
 from hook_tools import git_tools  # pylint: disable=E0402,C0413
 
 
+def _unicode_whitespace() -> Text:
+    '''Returns a string constant with all whitespace characters, sans \n.'''
+    return repr(''.join(
+        re.findall(
+            r'\s',
+            ''.join(chr(c) for c in range(sys.maxunicode + 1)
+                    if c != ord('\n')))))[1:-1]
+
+
 def _find_pip_tool(name: Text) -> Text:
     '''Tries to find a pip tool in a few default locations.'''
     for prefix in ['/usr/bin', '/usr/local/bin']:
@@ -477,12 +486,23 @@ class WhitespaceLinter(Linter):
 
     _VALIDATIONS = [
         ('Windows-style EOF', re.compile(br'\r\n?'), br'\n'),
-        ('trailing whitespace', re.compile(br'[ \t]+\n'), br'\n'),
+        ('trailing whitespace', re.compile(br'[ \t\r\f\v]+\n'), br'\n'),
         ('consecutive empty lines', re.compile(br'\n\n\n+'), br'\n\n'),
         ('empty lines after an opening brace', re.compile(br'{\n\n+'),
          br'{\n'),
         ('empty lines before a closing brace', re.compile(br'\n+\n(\s*})'),
          br'\n\1'),
+    ]
+
+    _UNICODE_VALIDATIONS = [
+        ('Windows-style EOF', re.compile(r'\r\n?'), r'\n'),
+        ('trailing whitespace',
+         re.compile(r'[' + _unicode_whitespace() + r'\u200b\u200c]+\n'),
+         r'\n'),
+        ('consecutive empty lines', re.compile(r'\n\n\n+'), r'\n\n'),
+        ('empty lines after an opening brace', re.compile(r'{\n\n+'), r'{\n'),
+        ('empty lines before a closing brace', re.compile(r'\n+\n(\s*})'),
+         r'\n\1'),
     ]
 
     def __init__(self, options: Optional[Options] = None) -> None:
@@ -501,11 +521,22 @@ class WhitespaceLinter(Linter):
 
         # Run all validations sequentially, so all violations can be fixed
         # together.
-        for error_string, search, replace in WhitespaceLinter._VALIDATIONS:
-            replaced = search.sub(replace, contents)
-            if replaced != contents:
-                violations.append(error_string)
-                contents = replaced
+        try:
+            unicode_contents = contents.decode('utf-8')
+            for (error_string, unicode_search,
+                 unicode_replace) in WhitespaceLinter._UNICODE_VALIDATIONS:
+                unicode_replaced = unicode_search.sub(unicode_replace,
+                                                      unicode_contents)
+                if unicode_replaced != unicode_contents:
+                    violations.append(error_string)
+                    unicode_contents = unicode_replaced
+            contents = unicode_contents.encode('utf-8')
+        except UnicodeDecodeError:
+            for error_string, search, replace in WhitespaceLinter._VALIDATIONS:
+                replaced = search.sub(replace, contents)
+                if replaced != contents:
+                    violations.append(error_string)
+                    contents = replaced
 
         return SingleResult(contents, violations)
 
