@@ -138,18 +138,17 @@ def _report_linter_results(filename: Text, new_contents: bytes, validate: bool,
                            violations: Sequence[Text],
                            fixable: bool) -> Tuple[Text, bool]:
     violations_message = ', '.join(
-        '%s%s%s' %
-        (git_tools.COLORS.FAIL, violation, git_tools.COLORS.NORMAL)
+        f'{git_tools.COLORS.FAIL}{violation}{git_tools.COLORS.NORMAL}'
         for violation in violations)
     if validate:
-        print('File %s%s%s lint failed: %s' %
-              (git_tools.COLORS.HEADER, filename,
-               git_tools.COLORS.NORMAL, violations_message),
+        print(('File '
+               f'{git_tools.COLORS.HEADER}{filename}{git_tools.COLORS.NORMAL} '
+               f'lint failed: {violations_message}'),
               file=sys.stderr)
     else:
-        print('Fixing %s%s%s (%s)' %
-              (git_tools.COLORS.HEADER, filename,
-               git_tools.COLORS.NORMAL, ', '.join(violations)),
+        print(('Fixing '
+               f'{git_tools.COLORS.HEADER}{filename}{git_tools.COLORS.NORMAL} '
+               f'({", ".join(violations)})'),
               file=sys.stderr)
         with open(os.path.join(_ROOT, filename), 'wb') as outfile:
             outfile.write(new_contents)
@@ -208,8 +207,7 @@ def _report_error(message: Text,
                                                  '%0D').replace('\n', '%0A')
         print(f'::error ::{message}\n', end='')
     else:
-        print('%s%s%s' %
-              (git_tools.COLORS.FAIL, message, git_tools.COLORS.NORMAL),
+        print(f'{git_tools.COLORS.FAIL}{message}{git_tools.COLORS.NORMAL}',
               file=sys.stderr)
 
 
@@ -258,20 +256,19 @@ def _get_enabled_linters(
         args_linters = set(linter_allowlist.split(','))
         unknown_linters = args_linters - final_linter_allowlist
         if unknown_linters:
-            print('Unknown linters %s%s%s.' %
-                  (git_tools.COLORS.FAIL, ', '.join(unknown_linters),
-                   git_tools.COLORS.NORMAL),
+            print(('Unknown linters '
+                   f'{git_tools.COLORS.FAIL}{", ".join(unknown_linters)}'
+                   f'{git_tools.COLORS.NORMAL}.'),
                   file=sys.stderr)
             sys.exit(1)
         final_linter_allowlist = args_linters
 
     unknown_linters = set(config['lint']) - set(available_linters)
     if unknown_linters:
-        print(
-            'Unknown linters %s%s%s.' %
-            (git_tools.COLORS.FAIL, ', '.join(unknown_linters),
-             git_tools.COLORS.NORMAL),
-            file=sys.stderr)
+        print(('Unknown linters '
+               f'{git_tools.COLORS.FAIL}{", ".join(unknown_linters)}'
+               f'{git_tools.COLORS.NORMAL}.'),
+              file=sys.stderr)
         sys.exit(1)
 
     for linter_name, options in config['lint'].items():
@@ -315,7 +312,7 @@ def main() -> None:
 
     validate_only = args.tool == 'validate'
 
-    with open(args.config_file, 'r') as config_file:
+    with open(args.config_file, 'r', encoding='utf-8') as config_file:
         config = json.load(config_file)
 
     file_violations: Set[Text] = set()
@@ -352,14 +349,15 @@ def main() -> None:
                                                  file_violations,
                                                  pre_upload=args.pre_upload):
                 sys.exit(1)
-            _report_error(('Linter validation errors. '
-                           'Please run\n\n    %s\n\nto fix them.') %
-                          git_tools.get_fix_commandline(args, file_violations),
-                          args.diagnostics_output)
+            _report_error(
+                ('Linter validation errors. '
+                 'Please run\n\n    '
+                 f'{git_tools.get_fix_commandline(args, file_violations)}\n\n'
+                 'to fix them.'), args.diagnostics_output)
         else:
-            print('Files written to working directory. '
-                  '%sPlease commit them before pushing.%s' % (
-                      git_tools.COLORS.HEADER, git_tools.COLORS.NORMAL),
+            print(('Files written to working directory. '
+                   f'{git_tools.COLORS.HEADER}Please commit them '
+                   f'before pushing.{git_tools.COLORS.NORMAL}'),
                   file=sys.stderr)
         sys.exit(1)
 

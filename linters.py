@@ -52,7 +52,7 @@ def _which(program: Text) -> Text:
         exe_file = os.path.abspath(os.path.join(path.strip('"'), program))
         if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
             return exe_file
-    raise Exception('`%s` not found' % program)
+    raise Exception(f'`{program}` not found')
 
 
 _TIDY_PATH = os.path.join(git_tools.HOOK_TOOLS_ROOT, 'tidy')
@@ -163,8 +163,7 @@ def _custom_command(command: Text, filename: Text,
 
     return [
         '/bin/bash', '-c',
-        '%s %s %s' % (command, shlex.quote(filename),
-                      shlex.quote(original_filename))
+        f'{command} {shlex.quote(filename)} {shlex.quote(original_filename)}',
     ]
 
 
@@ -218,7 +217,7 @@ def _lint_javascript(filename: Text,
                         ))
                 raise LinterException('JavaScript lint errors',
                                       fixable=False,
-                                      diagnostics=diagnostics)
+                                      diagnostics=diagnostics) from cpe
 
         with open(js_out.name, 'rb') as js_in:
             return header + js_in.read()
@@ -253,7 +252,7 @@ def _lint_prettier(contents: bytes, filename: Text) -> bytes:
     args = [
         _which('prettier'), '--single-quote', '--trailing-comma=all',
         '--no-config',
-        '--stdin-filepath=%s' % filename
+        f'--stdin-filepath={filename}'
     ]
     logging.debug('lint_prettier: Running %s', args)
     result = subprocess.run(args,
@@ -291,7 +290,7 @@ def _lint_stylelint(contents: bytes, filename: Text) -> bytes:
     args = [
         _which('stylelint'),
         '--stdin',
-        '--stdin-filename=%s' % filename,
+        f'--stdin-filename={filename}',
         '--fix',
     ]
     logging.debug('lint_style: Running %s', args)
@@ -320,7 +319,7 @@ def _lint_stylelint(contents: bytes, filename: Text) -> bytes:
     args = [
         _which('stylelint'),
         '--stdin',
-        '--stdin-filename=%s' % filename,
+        f'--stdin-filename={filename}',
         '--formatter=unix',
     ]
     logging.debug('lint_style: Running %s', args)
@@ -351,14 +350,12 @@ class Linter:
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         '''Runs the linter against |contents|.'''
-        # pylint: disable=no-self-use
         del filename  # unused
         return SingleResult(contents)
 
     def run_all(self, filenames: Sequence[str],
                 contents_callback: ContentsCallback) -> MultipleResults:
         '''Runs the linter against a subset of files.'''
-        # pylint: disable=no-self-use
         del filenames, contents_callback  # unused
         return MultipleResults(new_contents={}, original_contents={})
 
@@ -385,7 +382,8 @@ class JavaScriptLinter(Linter):
                 ['javascript'])
         except subprocess.CalledProcessError as cpe:
             raise LinterException(
-                str(b'\n'.join(cpe.output.split(b'\n')[1:]), encoding='utf-8'))
+                str(b'\n'.join(cpe.output.split(b'\n')[1:]),
+                    encoding='utf-8')) from cpe
 
     @property
     def name(self) -> Text:
@@ -399,7 +397,7 @@ class TypeScriptLinter(Linter):
 
     def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
-        self.__options = options or {}
+        del options
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         try:
@@ -407,7 +405,8 @@ class TypeScriptLinter(Linter):
                                 ['typescript'])
         except subprocess.CalledProcessError as cpe:
             raise LinterException(
-                str(b'\n'.join(cpe.output.split(b'\n')[1:]), encoding='utf-8'))
+                str(b'\n'.join(cpe.output.split(b'\n')[1:]),
+                    encoding='utf-8')) from cpe
 
     @property
     def name(self) -> Text:
@@ -421,7 +420,7 @@ class KarelLinter(Linter):
 
     def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
-        self.__options = options or {}
+        del options
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         try:
@@ -429,7 +428,8 @@ class KarelLinter(Linter):
                                 ['karel'])
         except subprocess.CalledProcessError as cpe:
             raise LinterException(
-                str(b'\n'.join(cpe.output.split(b'\n')[1:]), encoding='utf-8'))
+                str(b'\n'.join(cpe.output.split(b'\n')[1:]),
+                    encoding='utf-8')) from cpe
 
     @property
     def name(self) -> Text:
@@ -443,7 +443,7 @@ class MarkdownLinter(Linter):
 
     def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
-        self.__options = options or {}
+        del options
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         try:
@@ -451,7 +451,8 @@ class MarkdownLinter(Linter):
                                 ['markdown'])
         except subprocess.CalledProcessError as cpe:
             raise LinterException(
-                str(b'\n'.join(cpe.output.split(b'\n')[1:]), encoding='utf-8'))
+                str(b'\n'.join(cpe.output.split(b'\n')[1:]),
+                    encoding='utf-8')) from cpe
 
     @property
     def name(self) -> Text:
@@ -465,7 +466,7 @@ class JsonLinter(Linter):
 
     def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
-        self.__options = options or {}
+        del options
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         try:
@@ -473,7 +474,8 @@ class JsonLinter(Linter):
                                 ['json'])
         except subprocess.CalledProcessError as cpe:
             raise LinterException(
-                str(b'\n'.join(cpe.output.split(b'\n')[1:]), encoding='utf-8'))
+                str(b'\n'.join(cpe.output.split(b'\n')[1:]),
+                    encoding='utf-8')) from cpe
 
     @property
     def name(self) -> Text:
@@ -507,7 +509,7 @@ class WhitespaceLinter(Linter):
 
     def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
-        self.__options = options or {}
+        del options
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         '''Runs all validations against |files|.
@@ -629,7 +631,7 @@ class VueHTMLParser(HTMLParser):
     # pylint: disable=R0903
 
     def __init__(self) -> None:
-        super(VueHTMLParser, self).__init__()
+        super().__init__()
         self._stack: List[Tuple[Text, List[Tuple[str, Optional[str]]], Text,
                                 Tuple[int, int]]] = []
         self._tags: List[Tuple[Text, List[Tuple[str, Optional[str]]], str,
@@ -640,6 +642,8 @@ class VueHTMLParser(HTMLParser):
         self._filename: str = ''
 
     def error(self, message: Text) -> None:
+        '''Raises an error given the message.'''
+
         raise LinterException(message)
 
     def parse(
@@ -722,7 +726,7 @@ class VueLinter(Linter):
         except AssertionError as assertion:
             raise LinterException(str(assertion),
                                   diagnostics=parser.diagnostics,
-                                  fixable=False)
+                                  fixable=False) from assertion
         if parser.diagnostics:
             raise LinterException('Found Vue errors',
                                   diagnostics=parser.diagnostics,
@@ -733,18 +737,19 @@ class VueLinter(Linter):
                 sections,
                 key=lambda x: ['template', 'script', 'style'].index(x[0])):
             try:
-                new_sections.append('%s\n%s\n</%s>' %
-                                    (starttag, section_contents.rstrip(), tag))
+                new_sections.append(
+                    f'{starttag}\n{section_contents.rstrip()}\n</{tag}>')
             except subprocess.CalledProcessError as cpe:
                 raise LinterException(
                     str(b'\n'.join(cpe.output.split(b'\n')[1:]),
                         encoding='utf-8'),
-                    fixable=False)
+                    fixable=False) from cpe
 
         if len(new_sections) != len(sections):
-            raise LinterException('Mismatched sections: expecting %d, got %d' %
-                                  (len(sections), len(new_sections)),
-                                  fixable=False)
+            raise LinterException(
+                (f'Mismatched sections: expecting {len(sections)}, '
+                 f'got {len(new_sections)}'),
+                fixable=False)
 
         contents = '\n\n'.join(new_sections).encode('utf-8') + b'\n'
         if self.__options.get('stylelint', False):
@@ -765,7 +770,7 @@ class StyleLinter(Linter):
 
     def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
-        self.__options = options or {}
+        del options
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         contents = _lint_stylelint(contents, filename)
@@ -811,11 +816,11 @@ class PHPLinter(Linter):
             'standard',
             os.path.join(git_tools.HOOK_TOOLS_ROOT,
                          'phpcbf/Standards/OmegaUp/ruleset.xml'))
-        self.__common_args = ['--encoding=utf-8', '--standard=%s' % standard]
+        self.__common_args = ['--encoding=utf-8', f'--standard={standard}']
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         args = ([_which('phpcbf')] + self.__common_args
-                + ['--stdin-path=%s' % filename])
+                + [f'--stdin-path={filename}'])
         logging.debug('lint_php: Running %s', shlex.join(args))
         result = subprocess.run(args,
                                 input=contents,
@@ -841,7 +846,7 @@ class PHPLinter(Linter):
 
         # Even if phpcbf didn't find anything, phpcs might.
         args = ([_which('phpcs'), '-s', '-q'] + self.__common_args
-                + ['--stdin-path=%s' % filename, '--report=emacs'])
+                + [f'--stdin-path={filename}', '--report=emacs'])
         logging.debug('lint_php: Running %s', shlex.join(args))
         result = subprocess.run(args,
                                 input=contents,
@@ -894,7 +899,7 @@ class PythonLinter(Linter):
             for configname in ('pycodestyle_config', 'pep8_config'):
                 if configname not in self.__options:
                     continue
-                args.append('--config=%s' % self.__options[configname])
+                args.append(f'--config={self.__options[configname]}')
                 break
             try:
                 logging.debug('lint_python: Running %s', args)
@@ -919,7 +924,7 @@ class PythonLinter(Linter):
                 '--disable=import-error', tmp_path
             ]
             if 'pylint_config' in self.__options:
-                args.append('--rcfile=%s' % self.__options['pylint_config'])
+                args.append(f'--rcfile={self.__options["pylint_config"]}')
             try:
                 logging.debug('lint_python: Running %s', args)
                 subprocess.run(args,
@@ -976,7 +981,7 @@ class ClangFormatLinter(Linter):
 
     def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
-        self.__options = options or {}
+        del options
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         with tempfile.TemporaryDirectory(
@@ -1019,7 +1024,7 @@ class EslintLinter(Linter):
 
     def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
-        self.__options = options or {}
+        del options
         self.__lock = threading.Lock()
         self.__eslint_state: Optional[Tuple[int, str]] = None
 
@@ -1037,7 +1042,7 @@ class EslintLinter(Linter):
                                           env={
                                               **os.environ, 'HOME': '/tmp'
                                           })
-                    with open('/tmp/.eslint_d') as portfile:
+                    with open('/tmp/.eslint_d', encoding='utf-8') as portfile:
                         port_str, token = portfile.read().strip().split()
                     self.__eslint_state = (int(port_str), token)
         return self.__eslint_state
@@ -1197,14 +1202,14 @@ class CommandLinter(Linter):
                                    stderr=subprocess.STDOUT,
                                    universal_newlines=True)
                 except subprocess.CalledProcessError as cpe:
-                    raise LinterException(cpe.output, fixable=False)
+                    raise LinterException(cpe.output, fixable=False) from cpe
 
             with open(tmp.name, 'rb') as tmp_in:
                 return SingleResult(tmp_in.read(), ['command'])
 
     @property
     def name(self) -> Text:
-        return 'command (%s)' % (self.__options.get('commands', []), )
+        return f'command ({self.__options.get("commands", [])})'
 
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

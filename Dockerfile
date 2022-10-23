@@ -27,15 +27,15 @@ RUN ln -snf /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
 RUN python3 -m pip install --upgrade pip && \
     python3 -m pip install \
         mypy==0.982 \
-        pycodestyle==2.6.0 \
-        pylint==2.5.3 \
+        pycodestyle==2.9.1 \
+        pylint==2.15.5 \
         && \
     mkdir -p /.pylint.d && chown 1000:1000 /.pylint.d
 
 # JavaScript support.
 RUN git clone https://github.com/creationix/nvm.git /nvm --branch=v0.38.0 && \
-    (. /nvm/nvm.sh && nvm install v12.18.2 ; nvm use --delete-prefix v12.18.2)
-ENV PATH="/usr/bin/versions/node/v12.18.2/bin:${PATH}"
+    (. /nvm/nvm.sh && nvm install v14.17.3 ; nvm use --delete-prefix v14.17.3)
+ENV PATH="/usr/bin/versions/node/v14.17.3/bin:${PATH}"
 RUN npm install -g yarn && \
     yarn global add \
         @typescript-eslint/eslint-plugin@4.28.1 \
