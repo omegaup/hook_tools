@@ -97,15 +97,15 @@ def _validate_args(args: argparse.Namespace, files: Sequence[Text]) -> bool:
     '''
     if args.all_files:
         if args.commits or files:
-            print(
-                '%s--all-files is incompatible with `commits` or `files`.%s' %
-                (COLORS.FAIL, COLORS.NORMAL), file=sys.stderr)
+            print((f'{COLORS.FAIL}--all-files is incompatible '
+                   f'with `commits` or `files`.{COLORS.NORMAL}'),
+                  file=sys.stderr)
             return False
     if len(args.commits) not in (0, 1, 2):
         # args.commits can never be empty since its default value is ['HEAD'],
         # but the user can specify zero commits.
-        print('%sCan only specify zero, one or two commits.%s' %
-              (COLORS.FAIL, COLORS.NORMAL),
+        print((f'{COLORS.FAIL}Can only specify zero, one or '
+               f'two commits.{COLORS.NORMAL}'),
               file=sys.stderr)
         return False
     return True
@@ -190,7 +190,7 @@ def prompt(question: Text, default: bool = True) -> bool:
             no_label = no_label.upper()
 
         try:
-            response = input('%s (%s/%s): ' % (question, yes_label, no_label))
+            response = input(f'{question} ({yes_label}/{no_label}): ')
         except EOFError:
             return default
 
@@ -216,8 +216,7 @@ def file_contents(args: argparse.Namespace, root: Text,
             return working_dir_file.read()
     else:
         return subprocess.run(
-            ['/usr/bin/git', 'show',
-             '%s:%s' % (args.commits[-1], filename)],
+            ['/usr/bin/git', 'show', f'{args.commits[-1]}:{filename}'],
             check=True,
             stdout=subprocess.PIPE,
             cwd=root).stdout
@@ -353,8 +352,8 @@ def verify_toolchain(binaries: Mapping[Text, Text]) -> bool:
     success = True
     for path, install_cmd in binaries.items():
         if not os.path.isfile(path):
-            print('%s%s not found.%s ' 'Please run `%s` to install.' %
-                  (COLORS.FAIL, path, COLORS.NORMAL, install_cmd),
+            print((f'{COLORS.FAIL}{path} not found.{COLORS.NORMAL} '
+                   f'Please run `{install_cmd}` to install.'),
                   file=sys.stderr)
             success = False
     return success
@@ -375,7 +374,7 @@ def _is_single_commit_pushed(args: argparse.Namespace) -> bool:
         [
             '/usr/bin/git',
             'rev-parse',
-            '%s^' % pushed_commit,
+            f'{pushed_commit}^',
         ],
         universal_newlines=True,
         check=True,
@@ -408,9 +407,12 @@ def attempt_automatic_fixes(scriptname: Text,
         continue_message = 'ready to upload.'
     if not prompt('Want to also commit the fixes?'):
         # Fixes succeeded, even if they are not committed yet.
-        print('Files written to working directory. '
-              '%sPlease commit them before pushing.%s' %
-              (COLORS.HEADER, COLORS.NORMAL), file=sys.stderr)
+        print(
+            ('Files written to working directory. '
+             f'{COLORS.HEADER}Please commit them '
+             f'before pushing.{COLORS.NORMAL}'),
+            file=sys.stderr,
+        )
         return True
     if _is_single_commit_pushed(args):
         # We can amend the previous commit!
@@ -421,20 +423,20 @@ def attempt_automatic_fixes(scriptname: Text,
         else:
             commit_params.append('--all')
         subprocess.run(commit_params, check=True)
-        print('%sPrevious commit reused, %s%s' %
-              (COLORS.OKGREEN, continue_message, COLORS.NORMAL),
+        print((f'{COLORS.OKGREEN}Previous commit reused, {continue_message}'
+               f'{COLORS.NORMAL}'),
               file=sys.stderr)
     else:
         commit_params = ['/usr/bin/git', 'commit',
-                         '-m', 'Fixed %s lints' % scriptname]
+                         '-m', f'Fixed {scriptname} lints']
         if files:
             commit_params.append('--')
             commit_params.extend(files)
         else:
             commit_params.append('--all')
         subprocess.run(commit_params, check=True)
-        print('%sCommitted fixes, %s%s' %
-              (COLORS.OKGREEN, continue_message, COLORS.NORMAL),
+        print((f'{COLORS.OKGREEN}Committed fixes, {continue_message}'
+               f'{COLORS.NORMAL}'),
               file=sys.stderr)
     return True
 

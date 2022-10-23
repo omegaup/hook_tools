@@ -159,7 +159,7 @@ class TestLinters(unittest.TestCase):
             ),
             linters.Diagnostic(
                 message=('[pycodestyle] E111 indentation is not a '
-                         'multiple of four'),
+                         'multiple of 4'),
                 filename='test.py',
                 line='  pass',
                 lineno=2,

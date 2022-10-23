@@ -11,10 +11,10 @@ def main() -> None:
 
     filename = sys.argv[1]
 
-    with open(filename, 'r') as input_file:
+    with open(filename, 'r', encoding='utf-8') as input_file:
         contents = input_file.read()
 
-    with open(filename, 'w') as output_file:
+    with open(filename, 'w', encoding='utf-8') as output_file:
         output_file.write(contents.upper())
 
 
