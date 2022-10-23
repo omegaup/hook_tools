@@ -1,28 +1,23 @@
-FROM ubuntu:focal
+FROM ubuntu:jammy
 
 MAINTAINER Luis Héctor Chávez <lhchavez@omegaup.com>
 
 RUN ln -snf /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
      echo Etc/UTC > /etc/timezone && \
     apt-get update -y && \
-    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
-        software-properties-common \
-        && \
-    add-apt-repository ppa:ondrej/php && \
-    apt-get update -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         clang-format \
         curl \
         git \
         locales \
-        php8.0-cli \
-        php8.0-mbstring \
-        php8.0-xml \
-        php8.0-zip \
+        php8.1-cli \
+        php8.1-mbstring \
+        php8.1-xml \
+        php8.1-zip \
         python3-pip \
         python3-setuptools \
         python3-six \
-        python3.8-venv \
+        python3.10-venv \
         unzip && \
     rm -rf /var/lib/apt/lists/* && \
     /usr/sbin/locale-gen en_US.UTF-8 && \
@@ -31,7 +26,7 @@ RUN ln -snf /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
 # Python support.
 RUN python3 -m pip install --upgrade pip && \
     python3 -m pip install \
-        mypy==0.940 \
+        mypy==0.982 \
         pycodestyle==2.6.0 \
         pylint==2.5.3 \
         && \
