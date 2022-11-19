@@ -66,5 +66,8 @@ ENV LANG=en_US.UTF-8
 ADD ./ /hook_tools
 RUN (cd /hook_tools && composer install)
 
+# Allow non-Linux machines to use `git` in `/src`.
+RUN printf '[safe]\n\tdirectory = /src\n' >> /etc/gitconfig
+
 USER ubuntu
 ENTRYPOINT ["python3", "/hook_tools/lint.py"]
