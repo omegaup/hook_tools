@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  deploy:
+  bump-version:
     runs-on: ubuntu-22.04
 
     steps:
@@ -21,6 +21,18 @@ jobs:
           DEFAULT_BUMP: patch
           INITIAL_VERSION: 1.0.0
 
+    outputs:
+      version: ${{ steps.bump-version.outputs.tag }}
+
+  pypi:
+    runs-on: ubuntu-22.04
+    needs: bump-version
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ needs.bump-version.outputs.version }}
+
       - name: Install Python dependencies
         run: python3 -m pip install -r requirements.txt -r requirements.dev.txt
 
@@ -31,6 +43,15 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
+
+  docker:
+    runs-on: ubuntu-22.04
+    needs: [bump-version, pypi]
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ needs.bump-version.outputs.version }}
 
       # Add support for more platforms with QEMU (optional)
       # https://github.com/docker/setup-qemu-action
@@ -51,6 +72,6 @@ jobs:
         with:
           push: true
           build-args: |
-            VERSION=${{ steps.bump-version.outputs.tag }}
-          tags: omegaup/hook_tools:${{ steps.bump-version.outputs.tag }}
+            VERSION=${{ needs.bump-version.outputs.version }}
+          tags: omegaup/hook_tools:${{ needs.bump-version.outputs.version }}
           platforms: linux/amd64,linux/arm64
