@@ -93,7 +93,7 @@ ARG VERSION $VERSION
 RUN if [ "${VERSION}" = "dev" ]; then \
       python3 -m pip install /tmp/*.whl && rm /tmp/*.whl; \
     else \
-      python3 -m pip install "omegaup-hook-tools==${VERSION}"; \
+      python3 -m pip install "omegaup-hook-tools==$(echo "${VERSION}" | sed -e 's/^v//')"; \
     fi
 
 ADD ./ /hook_tools
