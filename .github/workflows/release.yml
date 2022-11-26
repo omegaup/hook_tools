@@ -50,7 +50,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          build-args:
-            - VERSION=${{ steps.bump-version.outputs.tag }}
+          build-args: |
+            VERSION=${{ steps.bump-version.outputs.tag }}
           tags: omegaup/hook_tools:${{ steps.bump-version.outputs.tag }}
           platforms: linux/amd64,linux/arm64
