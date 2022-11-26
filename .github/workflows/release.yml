@@ -21,6 +21,17 @@ jobs:
           DEFAULT_BUMP: patch
           INITIAL_VERSION: 1.0.0
 
+      - name: Install Python dependencies
+        run: python3 -m pip install -r requirements.txt -r requirements.dev.txt
+
+      - name: Build wheel
+        run: python3 -m build
+
+      - name: Publish wheel
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
       # Add support for more platforms with QEMU (optional)
       # https://github.com/docker/setup-qemu-action
       - name: Set up QEMU

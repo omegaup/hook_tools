@@ -21,11 +21,7 @@ import threading
 from typing import (Any, Callable, Dict, List, Mapping, NamedTuple, Optional,
                     Pattern, Text, Sequence, Tuple)
 
-if __name__ == "__main__" and __package__ is None:
-    sys.path.append(os.path.dirname(sys.path[0]))
-    __package__ = "hook_tools"  # pylint: disable=redefined-builtin
-
-from hook_tools import git_tools  # pylint: disable=E0402,C0413
+from . import git_tools
 
 
 def _unicode_whitespace() -> Text:
@@ -55,7 +51,7 @@ def _which(program: Text) -> Text:
     raise Exception(f'`{program}` not found')
 
 
-_TIDY_PATH = os.path.join(git_tools.HOOK_TOOLS_ROOT, 'tidy')
+_TIDY_PATH = os.path.join(git_tools.HOOK_TOOLS_ROOT, 'data/tidy')
 _PRETTIER_RE = re.compile(r'^(?:[^\s:]+\s*)?[^\s:]+: (.*) \((\d+):(\d+)\)\s*$')
 _DIAGNOSTIC_RE = re.compile(r'^([^:\s]+):(\d+):(\d+): (.*)$')
 
@@ -228,7 +224,7 @@ def _lint_html(contents: bytes, strict: bool) -> bytes:
 
     args = [
         _TIDY_PATH, '-q', '-config',
-        os.path.join(git_tools.HOOK_TOOLS_ROOT, 'tidy.txt')
+        os.path.join(git_tools.HOOK_TOOLS_ROOT, 'data/tidy.txt')
     ]
     logging.debug('lint_html: Running %s', args)
     result = subprocess.run(args,
@@ -815,7 +811,7 @@ class PHPLinter(Linter):
         standard = self.__options.get(
             'standard',
             os.path.join(git_tools.HOOK_TOOLS_ROOT,
-                         'phpcbf/Standards/OmegaUp/ruleset.xml'))
+                         'data/phpcbf/Standards/OmegaUp/ruleset.xml'))
         self.__common_args = ['--encoding=utf-8', f'--standard={standard}']
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
@@ -915,13 +911,19 @@ class PythonLinter(Linter):
                                                 cpe.output.strip(),
                                                 toolname='pycodestyle'))
 
-            # We need to disable import-error since the file won't be checked
-            # in the repository, but in a temporary directory.
+            # We need to disable import-error/no-name-in-module since the file
+            # won't be checked in the repository, but in a temporary directory.
             args = [
-                python3, '-m', 'pylint', '--output-format=text',
+                python3,
+                '-m',
+                'pylint',
+                '--output-format=text',
                 ('--msg-template={abspath}:{line}:{column}: '
-                 '{msg_id}({symbol}) {msg}'), '--reports=no',
-                '--disable=import-error', tmp_path
+                 '{msg_id}({symbol}) {msg}'),
+                '--reports=no',
+                '--disable=import-error',
+                '--disable=no-name-in-module',
+                tmp_path,
             ]
             if 'pylint_config' in self.__options:
                 args.append(f'--rcfile={self.__options["pylint_config"]}')
@@ -941,7 +943,9 @@ class PythonLinter(Linter):
 
             if self.__options.get('mypy', False):
                 args = [
-                    _which('mypy'),
+                    _which('python3'),
+                    '-m',
+                    'mypy',
                     '--show-column-numbers',
                     '--strict',
                     '--no-incremental',

@@ -17,12 +17,7 @@ import traceback
 from typing import (Any, Callable, Dict, Iterator, List, Mapping, Optional,
                     Sequence, Set, Text, Tuple)
 
-if __name__ == "__main__" and __package__ is None:
-    sys.path.append(os.path.dirname(sys.path[0]))
-    __package__ = "hook_tools"  # pylint: disable=redefined-builtin
-
-from hook_tools import linters  # pylint: disable=E0402,C0413
-from hook_tools import git_tools  # pylint: disable=E0402,C0413
+from . import linters, git_tools
 
 LinterFactory = Callable[..., linters.Linter]
 
@@ -360,9 +355,5 @@ def main() -> None:
                    f'before pushing.{git_tools.COLORS.NORMAL}'),
                   file=sys.stderr)
         sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

@@ -1,3 +1,25 @@
+FROM ubuntu:jammy as build
+
+MAINTAINER Luis Héctor Chávez <lhchavez@omegaup.com>
+
+RUN apt-get update -y && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        git \
+        python3-pip \
+        python3.10-venv \
+        && \
+    rm -rf /var/lib/apt/lists/*
+
+# Python support.
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip install \
+        build \
+        setuptools
+
+ADD ./ /hook_tools
+RUN cd /hook_tools && \
+     python3 -m build
+
 FROM ubuntu:jammy
 
 MAINTAINER Luis Héctor Chávez <lhchavez@omegaup.com>
@@ -5,12 +27,6 @@ MAINTAINER Luis Héctor Chávez <lhchavez@omegaup.com>
 RUN ln -snf /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
      echo Etc/UTC > /etc/timezone && \
     apt-get update -y && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        apt-utils \
-        && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN apt-get update -y && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         clang-format \
         curl \
@@ -21,8 +37,6 @@ RUN apt-get update -y && \
         php8.1-xml \
         php8.1-zip \
         python3-pip \
-        python3-setuptools \
-        python3-six \
         python3.10-venv \
         unzip && \
     rm -rf /var/lib/apt/lists/* && \
@@ -30,12 +44,9 @@ RUN apt-get update -y && \
     /usr/sbin/update-locale LANG=en_US.UTF-8
 
 # Python support.
+ADD requirements.txt requirements.test.txt ./
 RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install \
-        mypy==0.982 \
-        pycodestyle==2.9.1 \
-        pylint==2.15.5 \
-        && \
+    python3 -m pip install -r requirements.txt -r requirements.test.txt && \
     mkdir -p /.pylint.d && chown 1000:1000 /.pylint.d
 
 # JavaScript support.
@@ -69,11 +80,16 @@ WORKDIR /src
 ENV DOCKER=true
 ENV LANG=en_US.UTF-8
 
+COPY --from=build /hook_tools/dist/*.whl /tmp/
+RUN python3 -m pip install /tmp/*.whl && rm /tmp/*.whl
+
 ADD ./ /hook_tools
 RUN (cd /hook_tools && composer install)
 
-# Allow non-Linux machines to use `git` in `/src`.
-RUN printf '[safe]\n\tdirectory = /src\n' >> /etc/gitconfig
+# Allow non-Linux machines to use `git` everywhere in the filesystem, since all
+# the virtualization techniques will cause the filesystems to be mounted with
+# unexpected permissions that make git bail out.
+RUN printf '[safe]\n\tdirectory = *\n' >> /etc/gitconfig
 
 USER ubuntu
-ENTRYPOINT ["python3", "/hook_tools/lint.py"]
+ENTRYPOINT ["python3", "-m", "hook_tools"]

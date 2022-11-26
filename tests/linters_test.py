@@ -63,7 +63,7 @@ class TestLinters(unittest.TestCase):
         """Tests CommandLinter."""
 
         linter = linters.CommandLinter({
-            'commands': ['python3 test/uppercase_linter.py'],
+            'commands': ['python3 tests/data/uppercase_linter.py'],
         })
 
         self.assertEqual(linter.run_one('test.txt', b'Hello, World!\n'),
