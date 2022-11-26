@@ -1,3 +1,5 @@
+ARG VERSION=dev
+
 FROM ubuntu:jammy as build
 
 MAINTAINER Luis Héctor Chávez <lhchavez@omegaup.com>
@@ -16,9 +18,15 @@ RUN python3 -m pip install --upgrade pip && \
         build \
         setuptools
 
+ARG VERSION $VERSION
 ADD ./ /hook_tools
-RUN cd /hook_tools && \
-     python3 -m build
+RUN if [ "${VERSION}" = "dev" ]; then \
+      cd /hook_tools && \
+        python3 -m build; \
+    else \
+      mkdir /hook_tools/dist/ && \
+      touch /hook_tools/dist/empty.whl; \
+    fi
 
 FROM ubuntu:jammy
 
@@ -81,7 +89,12 @@ ENV DOCKER=true
 ENV LANG=en_US.UTF-8
 
 COPY --from=build /hook_tools/dist/*.whl /tmp/
-RUN python3 -m pip install /tmp/*.whl && rm /tmp/*.whl
+ARG VERSION $VERSION
+RUN if [ "${VERSION}" = "dev" ]; then \
+      python3 -m pip install /tmp/*.whl && rm /tmp/*.whl; \
+    else \
+      python3 -m pip install "omegaup-hook-tools==${VERSION}"; \
+    fi
 
 ADD ./ /hook_tools
 RUN (cd /hook_tools && composer install)
