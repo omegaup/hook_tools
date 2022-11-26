@@ -1,0 +1,53 @@
+[build-system]
+requires = [
+    "setuptools >= 65.6.3",
+    "setuptools_scm[toml] >= 6.2",
+    "wheel",
+    "setuptools-git-versioning",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hook_tools"
+authors = [
+  { name="omegaUp", email="lhchavez@omegaup.org" },
+]
+description = "Utilities for writing git hooks"
+readme = "README.md"
+requires-python = ">=3.6"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+]
+dynamic = ["version", "dependencies", "optional-dependencies"]
+
+[project.urls]
+"Homepage" = "https://github.com/omegaup/libomegaup"
+"Bug Tracker" = "https://github.com/omegaup/libomegaup/issues"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+omegaup = ["py.typed", "hook_tools/data/*"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = "requirements.txt"}
+optional-dependencies.testing = {file = "requirements.test.txt"}
+
+[tool.setuptools-git-versioning]
+enabled = true
+
+[tool.setuptools_scm]
+write_to = "src/hook_tools/_version.py"
+
+# W503: YAPF and PEP8 prefer to break before binary operators.
+[pycodestyle]
+ignore = "E402,W503"
+
+[flake8]
+ignore = "E402,W503"

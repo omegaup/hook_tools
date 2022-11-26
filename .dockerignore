@@ -1,1 +1,15 @@
-vendor/**
+# Ignore everything
+*
+
+# Only allow the things we want to allow
+!.git/**/*
+!Dockerfile
+!LICENSE
+!README.md
+!composer.json
+!composer.lock
+!pyproject.toml
+!requirements.dev.txt
+!requirements.test.txt
+!requirements.txt
+!src/hook_tools/**/*

@@ -18,9 +18,7 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-/usr/bin/python3 linters_test.py
-/usr/bin/python3 git_tools_test.py
-MYPYPATH="${PWD}/.." /usr/bin/python3 \
-  lint.py \
+python3 -m pytest
+python3 -m hook_tools \
   "--diagnostics-output=${DIAGNOSTICS_OUTPUT}" \
   validate --all

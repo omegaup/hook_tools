@@ -2,3 +2,7 @@ __pycache__
 *.pyc
 .mypy_cache/
 /vendor/
+/dist/
+/venv/
+/src/hook_tools/_version.py
+*.egg-info/
