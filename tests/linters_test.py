@@ -5,15 +5,9 @@
 
 from __future__ import print_function
 
-import os
-import sys
 import unittest
 
-if __name__ == "__main__" and __package__ is None:
-    sys.path.append(os.path.dirname(sys.path[0]))
-    __package__ = "hook_tools"  # pylint: disable=redefined-builtin
-
-from hook_tools import linters  # pylint: disable=E0402,C0413
+from omegaup_hook_tools import linters
 
 
 class TestLinters(unittest.TestCase):

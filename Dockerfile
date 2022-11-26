@@ -92,4 +92,4 @@ RUN (cd /hook_tools && composer install)
 RUN printf '[safe]\n\tdirectory = *\n' >> /etc/gitconfig
 
 USER ubuntu
-ENTRYPOINT ["python3", "-m", "hook_tools"]
+ENTRYPOINT ["python3", "-m", "omegaup_hook_tools"]

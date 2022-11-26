@@ -8,7 +8,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hook_tools"
+name = "omegaup_hook_tools"
 authors = [
   { name="omegaUp", email="lhchavez@omegaup.org" },
 ]
@@ -33,7 +33,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools.package-data]
-omegaup = ["py.typed", "hook_tools/data/*"]
+omegaup = ["py.typed", "omegaup_hook_tools/data/*"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}
@@ -43,7 +43,7 @@ optional-dependencies.testing = {file = "requirements.test.txt"}
 enabled = true
 
 [tool.setuptools_scm]
-write_to = "src/hook_tools/_version.py"
+write_to = "src/omegaup_hook_tools/_version.py"
 
 # W503: YAPF and PEP8 prefer to break before binary operators.
 [pycodestyle]
