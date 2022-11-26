@@ -19,6 +19,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 python3 -m pytest
-python3 -m hook_tools \
+python3 -m omegaup_hook_tools \
   "--diagnostics-output=${DIAGNOSTICS_OUTPUT}" \
   validate --all

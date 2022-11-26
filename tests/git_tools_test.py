@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 """Unit tests for git_tools."""
 
 from __future__ import print_function
 
-import os
-import sys
 import unittest
 
-if __name__ == "__main__" and __package__ is None:
-    sys.path.append(os.path.dirname(sys.path[0]))
-    __package__ = "hook_tools"  # pylint: disable=redefined-builtin
-
-from hook_tools import git_tools  # pylint: disable=E0402,C0413
+from omegaup_hook_tools import git_tools
 
 
 class TestGitTools(unittest.TestCase):

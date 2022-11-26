@@ -12,4 +12,4 @@
 !requirements.dev.txt
 !requirements.test.txt
 !requirements.txt
-!src/hook_tools/**/*
+!src/omegaup_hook_tools/**/*

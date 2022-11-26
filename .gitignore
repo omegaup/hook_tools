@@ -4,5 +4,5 @@ __pycache__
 /vendor/
 /dist/
 /venv/
-/src/hook_tools/_version.py
+/src/omegaup_hook_tools/_version.py
 *.egg-info/
