@@ -9,8 +9,8 @@ Para agregar `hook_tools` a tu repositorio:
 * Agrega [hook_tools](https://github.com/omegaup/hook_tools/) como submódulo de
   git en algún lugar de tu repositorio.
 * Agrega un archivo `.lint.config.json` en la raíz de tu repositorio.
-* Invoca `hook_tools/lint.py validate --all` en tu archivo `.travis.yml` o en
-  los git pre-upload hooks.
+* Invoca `hook_tools/lint.py validate --all` en tu archivo
+  `.github/workflows/ci.yml` o en los git pre-upload hooks.
 * Si estás en un sistema que soporta correr [Docker](https://www.docker.com),
   puedes también correr `docker run -v $PWD:/src omegaup/hook_tools validate
   --all`.
@@ -55,6 +55,11 @@ linters soportados (con sus respectivas opciones) son:
      pep8.
   * `pylint_config`: Una cadena con la ruta del archivo de configuración para
      pylint.
+* `sql`: Corre [sqlfluff](https://docs.sqlfluff.com).
+  * `dialect`: El dialecto de SQL a usar (default: `mysql`).
+  * `config`: (Opcional) Ruta al archivo de configuración de sqlfluff.
+  * `exclude_rules`: (Opcional) Lista de reglas a excluir.
+  * `templater`: (Opcional) Templater de sqlfluff.
 * `custom`: Corre comandos personalizados.
   * `commands`: Un arreglo con comandos.
 

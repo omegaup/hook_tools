@@ -5,7 +5,9 @@
 
 from __future__ import print_function
 
+import subprocess
 import unittest
+from unittest import mock
 
 from omegaup_hook_tools import linters
 
@@ -167,6 +169,64 @@ class TestLinters(unittest.TestCase):
                 lineno=2,
             ),
         ])
+
+    @mock.patch('omegaup_hook_tools.linters._which', return_value='sqlfluff')
+    @mock.patch('omegaup_hook_tools.linters.subprocess.run')
+    def test_sql_fix(self, mock_run: mock.Mock,
+                     mock_which: mock.Mock) -> None:
+        """Tests SqlFluffLinter automatic fixes."""
+        del mock_which
+
+        expected = b'SELECT 1;\n'
+
+        def _side_effect(args, **kwargs):  # type: ignore[no-untyped-def]
+            del kwargs
+            if args[1] == 'fix':
+                with open(args[-1], 'wb') as sql_file:
+                    sql_file.write(expected)
+                return subprocess.CompletedProcess(args=args,
+                                                   returncode=0,
+                                                   stdout='')
+            return subprocess.CompletedProcess(args=args, returncode=0,
+                                               stdout='[]')
+
+        mock_run.side_effect = _side_effect
+
+        linter = linters.SqlFluffLinter({'dialect': 'mysql'})
+        self.assertEqual(
+            linter.run_one('test.sql', b'SELECT  1;\n'),
+            linters.SingleResult(expected, ['sql']))
+
+    @mock.patch('omegaup_hook_tools.linters._which', return_value='sqlfluff')
+    @mock.patch('omegaup_hook_tools.linters.subprocess.run')
+    def test_sql_lint_errors(self, mock_run: mock.Mock,
+                             mock_which: mock.Mock) -> None:
+        """Tests SqlFluffLinter diagnostics on unfixable lint errors."""
+        del mock_which
+
+        def _side_effect(args, **kwargs):  # type: ignore[no-untyped-def]
+            del kwargs
+            if args[1] == 'fix':
+                return subprocess.CompletedProcess(args=args,
+                                                   returncode=0,
+                                                   stdout='')
+            output = (
+                '[{"filepath":"/tmp/test.sql","violations":['
+                '{"code":"LT01","description":"Unexpected spacing",'
+                '"line_no":1,"line_pos":9}]}]')
+            return subprocess.CompletedProcess(args=args,
+                                               returncode=1,
+                                               stdout=output)
+
+        mock_run.side_effect = _side_effect
+
+        linter = linters.SqlFluffLinter({'dialect': 'mysql'})
+        with self.assertRaisesRegex(linters.LinterException,
+                        r'sqlfluff lint errors') as lex:
+            linter.run_one('test.sql', b'SELECT  1;\n')
+        self.assertTrue(lex.exception.diagnostics)
+        self.assertIn('Unexpected spacing',
+                  lex.exception.diagnostics[0].message)
 
 
 if __name__ == '__main__':

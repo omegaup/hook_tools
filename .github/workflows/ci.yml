@@ -25,3 +25,36 @@ jobs:
             --entrypoint /bin/bash \
             omegaup/hook_tools \
             /src/test.sh --diagnostics-output=github
+
+  python-tests:
+    runs-on: ubuntu-latest
+    env:
+      TRAVIS: "true"
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pylint pep8
+
+      - name: Run unit tests
+        run: |
+          PYTHONPATH=src python -m unittest \
+            tests.linters_test.TestLinters.test_sql_fix \
+            tests.linters_test.TestLinters.test_sql_lint_errors
+
+      - name: Validate repository
+        continue-on-error: true
+        run: PYTHONPATH=src python -m omegaup_hook_tools.lint validate --all-files
