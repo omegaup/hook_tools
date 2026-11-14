@@ -135,8 +135,8 @@ def _get_all_files() -> Iterator[bytes]:
 
 def _get_staged_files() -> Iterator[bytes]:
     '''Returns the list of files that are staged in the index.'''
-    cmd = ['/usr/bin/git', 'diff-index', '-z', '--diff-filter=d',
-           '--cached', 'HEAD']
+    cmd = ['/usr/bin/git', 'diff', '--raw', '-z', '--diff-filter=d',
+           '--cached']
     tokens = subprocess.run(cmd,
                             check=True,
                             stdout=subprocess.PIPE,
@@ -276,6 +276,27 @@ def root_dir() -> Text:
                           stdout=subprocess.PIPE).stdout.strip()
 
 
+def _validate_staged_fix(parser: argparse.ArgumentParser,
+                         args: argparse.Namespace) -> None:
+    '''Reject staged fixes that would overwrite working tree changes.'''
+    root = root_dir()
+    for filename in args.files:
+        path = os.path.join(root, filename)
+        matches = False
+        if os.path.isfile(path) and not os.path.islink(path):
+            try:
+                with open(path, 'rb') as working_file:
+                    matches = working_file.read() == file_contents(
+                        args, root, filename)
+            except OSError:
+                pass
+        if not matches:
+            parser.error(
+                f'cannot fix --staged: {filename!r} working tree differs '
+                'from the index or is not a regular file; stage or '
+                'stash those changes first')
+
+
 def parse_arguments(
         tool_description: Optional[Text] = None,
         extra_arguments: Sequence[Argument] = ()) -> argparse.Namespace:
@@ -358,6 +379,9 @@ def parse_arguments(
     else:
         args.files = list(_files_to_consider(args))
 
+    if args.staged and args.tool == 'fix':
+        _validate_staged_fix(parser, args)
+
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG)
     else:
@@ -383,6 +407,8 @@ def _get_fix_args(prog_args: List[Text],
                   files: Optional[Iterable[Text]] = None) -> Sequence[Text]:
     '''Gets the command arguments to run to fix violations.'''
     params = prog_args + ['fix']
+    if getattr(args, 'staged', False):
+        return params + ['--staged']
     params.extend(args.commits)
     if not files and args.files:
         files = args.files

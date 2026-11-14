@@ -15,6 +15,19 @@ Para agregar `hook_tools` a tu repositorio:
   puedes también correr `docker run -v $PWD:/src omegaup/hook_tools validate
   --all`.
 
+## Archivos en el índice
+
+`validate --staged` valida únicamente el contenido agregado al índice con
+`git add`. No incluye archivos eliminados, cambios sin agregar ni archivos
+sin seguimiento. También funciona antes del primer commit.
+
+`fix --staged` escribe las correcciones en el directorio de trabajo y deja el
+índice intacto. Rechaza la operación antes de escribir si algún archivo
+seleccionado difiere del índice, falta o es un enlace simbólico. Guarda esos
+cambios antes de ejecutar el comando y agrega las correcciones con `git add`.
+
+`--staged` no se puede combinar con `--all-files`, commits ni rutas explícitas.
+
 ## `.lint.config.json`
 
 Este es un diccionario de configuración de los linters que se van a correr. Los
