@@ -101,6 +101,17 @@ def _validate_args(args: argparse.Namespace, files: Sequence[Text]) -> bool:
                    f'with `commits` or `files`.{COLORS.NORMAL}'),
                   file=sys.stderr)
             return False
+    if args.staged:
+        if args.all_files:
+            print((f'{COLORS.FAIL}--staged is incompatible '
+                   f'with --all-files.{COLORS.NORMAL}'),
+                  file=sys.stderr)
+            return False
+        if args.commits or files:
+            print((f'{COLORS.FAIL}--staged is incompatible '
+                   f'with `commits` or `files`.{COLORS.NORMAL}'),
+                  file=sys.stderr)
+            return False
     if len(args.commits) not in (0, 1, 2):
         # args.commits can never be empty since its default value is ['HEAD'],
         # but the user can specify zero commits.
@@ -120,6 +131,32 @@ def _get_all_files() -> Iterator[bytes]:
                                cwd=root_dir()).stdout.split(b'\x00'):
         if os.path.isfile(path):
             yield path
+
+
+def _get_staged_files() -> Iterator[bytes]:
+    '''Returns the list of files that are staged in the index.'''
+    cmd = ['/usr/bin/git', 'diff', '--raw', '-z', '--diff-filter=d',
+           '--cached']
+    tokens = subprocess.run(cmd,
+                            check=True,
+                            stdout=subprocess.PIPE,
+                            cwd=root_dir()).stdout.split(b'\x00')
+    idx = 0
+    while idx < len(tokens) - 1:
+        match = GIT_DIFF_TREE_PATTERN.match(tokens[idx])
+        assert match, tokens[idx]
+        filemode, status = match.groups()
+        if filemode == GIT_DIRECTORY_ENTRY_MODE:
+            idx += 2
+            continue
+        src = tokens[idx + 1]
+        if status in (b'C', b'R'):
+            dest = tokens[idx + 2]
+            idx += 3
+            yield dest
+        else:
+            idx += 2
+            yield src
 
 
 def _get_changed_files(commits: List[Text]) -> Iterator[bytes]:
@@ -168,6 +205,8 @@ def _files_to_consider(args: argparse.Namespace) -> List[Text]:
     # Get all files in the latter commit.
     if args.all_files:
         result = _get_all_files()
+    elif args.staged:
+        result = _get_staged_files()
     else:
         result = _get_changed_files(args.commits)
 
@@ -208,6 +247,13 @@ def prompt(question: Text, default: bool = True) -> bool:
 def file_contents(args: argparse.Namespace, root: Text,
                   filename: Text) -> bytes:
     '''Returns contents of |filename| at the revision specified by |args|.'''
+    if getattr(args, 'staged', False):
+        # When --staged is used, read the version of the file from the index.
+        return subprocess.run(
+            ['/usr/bin/git', 'show', f':{filename}'],
+            check=True,
+            stdout=subprocess.PIPE,
+            cwd=root).stdout
     if len(args.commits) in (0, 1):
         # Zero or one commits (where the former is a shorthand for 'HEAD')
         # always diff against the current contents of the file in the
@@ -228,6 +274,27 @@ def root_dir() -> Text:
                           universal_newlines=True,
                           check=True,
                           stdout=subprocess.PIPE).stdout.strip()
+
+
+def _validate_staged_fix(parser: argparse.ArgumentParser,
+                         args: argparse.Namespace) -> None:
+    '''Reject staged fixes that would overwrite working tree changes.'''
+    root = root_dir()
+    for filename in args.files:
+        path = os.path.join(root, filename)
+        matches = False
+        if os.path.isfile(path) and not os.path.islink(path):
+            try:
+                with open(path, 'rb') as working_file:
+                    matches = working_file.read() == file_contents(
+                        args, root, filename)
+            except OSError:
+                pass
+        if not matches:
+            parser.error(
+                f'cannot fix --staged: {filename!r} working tree differs '
+                'from the index or is not a regular file; stage or '
+                'stash those changes first')
 
 
 def parse_arguments(
@@ -260,6 +327,11 @@ def parse_arguments(
         '--all-files', action='store_true',
         help='Considers all files. Incompatible with `commits` and `files`')
     validate_parser.add_argument(
+        '--staged', action='store_true',
+        help=('Only considers files staged in the index '
+              '(git diff --cached). Incompatible with '
+              '--all-files, `commits`, and `files`'))
+    validate_parser.add_argument(
         'commits',
         metavar='[commit [commit ...]] [--] [file [file ...]]',
         nargs=argparse.REMAINDER,
@@ -276,6 +348,11 @@ def parse_arguments(
         '--all-files', action='store_true',
         help=('Considers all files. '
               'Incompatible with `commits` and `files`'))
+    fix_parser.add_argument(
+        '--staged', action='store_true',
+        help=('Only considers files staged in the index '
+              '(git diff --cached). Incompatible with '
+              '--all-files, `commits`, and `files`'))
     fix_parser.add_argument(
         'commits',
         metavar='[commit [commit ...]] [--] [file [file ...]]',
@@ -302,6 +379,9 @@ def parse_arguments(
     else:
         args.files = list(_files_to_consider(args))
 
+    if args.staged and args.tool == 'fix':
+        _validate_staged_fix(parser, args)
+
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG)
     else:
@@ -327,6 +407,8 @@ def _get_fix_args(prog_args: List[Text],
                   files: Optional[Iterable[Text]] = None) -> Sequence[Text]:
     '''Gets the command arguments to run to fix violations.'''
     params = prog_args + ['fix']
+    if getattr(args, 'staged', False):
+        return params + ['--staged']
     params.extend(args.commits)
     if not files and args.files:
         files = args.files
