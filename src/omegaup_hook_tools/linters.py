@@ -7,17 +7,14 @@ from html.parser import HTMLParser
 import bisect
 import dataclasses
 import importlib.util
-import json
 import logging
 import os
 import os.path
 import re
 import shlex
-import socket
 import subprocess
 import sys
 import tempfile
-import threading
 from typing import (Any, Callable, Dict, List, Mapping, NamedTuple, Optional,
                     Pattern, Text, Sequence, Tuple)
 
@@ -52,7 +49,7 @@ def _which(program: Text) -> Text:
 
 
 _TIDY_PATH = os.path.join(git_tools.HOOK_TOOLS_ROOT, 'data/tidy')
-_PRETTIER_RE = re.compile(r'^(?:[^\s:]+\s*)?[^\s:]+: (.*) \((\d+):(\d+)\)\s*$')
+_FORMAT_RE = re.compile(r'^(?:[^\s:]+\s*)?[^\s:]+: (.*) \((\d+):(\d+)\)\s*$')
 _DIAGNOSTIC_RE = re.compile(r'^([^:\s]+):(\d+):(\d+): (.*)$')
 
 Options = Mapping[str, Any]
@@ -153,6 +150,49 @@ def _process_diagnostics_output(
     return diagnostics
 
 
+def _write_batch_files(
+        raw_tmpdir: str,
+        files: Sequence[Tuple[str, bytes]]) -> Dict[str, str]:
+    '''Materializes |files| under |raw_tmpdir| and maps realpath -> name.'''
+    tmpdir = os.path.realpath(raw_tmpdir)
+    path_to_name: Dict[str, str] = {}
+    for filename, contents in files:
+        path = os.path.join(tmpdir, filename)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'wb') as outf:
+            outf.write(contents)
+        path_to_name[path] = filename
+    return path_to_name
+
+
+def _parse_batch_diagnostics(
+        output: str, toolname: Optional[str], path_to_name: Mapping[str, str],
+        original: Mapping[str, bytes]) -> List[Diagnostic]:
+    '''Parses path:line:col: message output for a batch of files.'''
+    diagnostics: List[Diagnostic] = []
+    for line in output.strip().split('\n'):
+        match = _DIAGNOSTIC_RE.match(line.strip())
+        if not match:
+            continue
+        reported = (path_to_name.get(match.group(1))
+                    or path_to_name.get(os.path.realpath(match.group(1))))
+        if reported is None:
+            continue
+        lines = original[reported].decode('utf-8').split('\n')
+        lineno = int(match.group(2))
+        diagnostics.append(
+            Diagnostic(
+                (f'[{toolname}] {match.group(4)}'
+                 if toolname else match.group(4)),
+                filename=reported,
+                lineno=lineno,
+                line=(lines[lineno - 1].rstrip()
+                      if lineno <= len(lines) else ''),
+                col=int(match.group(3)) or None,
+            ))
+    return diagnostics
+
+
 def _custom_command(command: Text, filename: Text,
                     original_filename: Text) -> List[Text]:
     '''A custom command.'''
@@ -166,30 +206,23 @@ def _custom_command(command: Text, filename: Text,
 def _lint_javascript(filename: Text,
                      contents: bytes,
                      extra_commands: Optional[Sequence[Text]] = None) -> bytes:
-    '''Runs prettier on |contents|.'''
+    '''Runs oxfmt on |contents|, then any extra commands.'''
 
     lines = contents.decode('utf-8').split('\n')
+    header = b''
+    if contents.startswith(b'#!'):
+        header, contents = contents.split(b'\n', 1)
+        header += b'\n'
+
+    formatted = _lint_oxfmt(contents, filename)
+    if not extra_commands:
+        return header + formatted
+
     with tempfile.NamedTemporaryFile(suffix='.js') as js_out:
-        # Keep the shebang unmodified.
-        header = b''
-        if contents.startswith(b'#!'):
-            header, contents = contents.split(b'\n', 1)
-            header += b'\n'
-
-        js_out.write(contents)
+        js_out.write(formatted)
         js_out.flush()
-
-        commands = [
-            [
-                _which('prettier'), '--single-quote', '--trailing-comma=all',
-                '--no-config', '--write', js_out.name
-            ],
-        ] + [
-            _custom_command(command, js_out.name, filename)
-            for command in (extra_commands or [])
-        ]
-
-        for args in commands:
+        for command in extra_commands or []:
+            args = _custom_command(command, js_out.name, filename)
             try:
                 logging.debug('lint_javascript: Running %s', args)
                 subprocess.run(args,
@@ -200,7 +233,7 @@ def _lint_javascript(filename: Text,
             except subprocess.CalledProcessError as cpe:
                 diagnostics: List[Diagnostic] = []
                 for line in cpe.output.strip().split('\n'):
-                    match = _PRETTIER_RE.match(line)
+                    match = _FORMAT_RE.match(line)
                     if not match:
                         continue
                     diagnostics.append(
@@ -243,14 +276,16 @@ def _lint_html(contents: bytes, strict: bool) -> bytes:
     raise LinterException(result.stderr.decode('utf-8', errors='replace'))
 
 
-def _lint_prettier(contents: bytes, filename: Text) -> bytes:
-    '''Runs prettier on |contents| .'''
+def _lint_oxfmt(contents: bytes, filename: Text) -> bytes:
+    '''Runs oxfmt on |contents|.'''
     args = [
-        _which('prettier'), '--single-quote', '--trailing-comma=all',
-        '--no-config',
-        f'--stdin-filepath={filename}'
+        _which('oxfmt'),
+        '-c',
+        os.path.join(git_tools.HOOK_TOOLS_ROOT, 'data/oxfmtrc.json'),
+        '--disable-nested-config',
+        f'--stdin-filepath={filename}',
     ]
-    logging.debug('lint_prettier: Running %s', args)
+    logging.debug('lint_oxfmt: Running %s', args)
     result = subprocess.run(args,
                             input=contents,
                             stdout=subprocess.PIPE,
@@ -263,7 +298,7 @@ def _lint_prettier(contents: bytes, filename: Text) -> bytes:
         diagnostics: List[Diagnostic] = []
         for line in result.stderr.decode('utf-8',
                                          errors='replace').strip().split('\n'):
-            match = _PRETTIER_RE.match(line)
+            match = _FORMAT_RE.match(line)
             if not match:
                 continue
             diagnostics.append(
@@ -341,6 +376,9 @@ class Linter:
     '''An abstract Linter.'''
     # pylint: disable=R0903
 
+    # Subclasses set this when run_all does the work of every run_one.
+    batch = False
+
     def __init__(self) -> None:
         pass
 
@@ -362,7 +400,7 @@ class Linter:
 
 
 class JavaScriptLinter(Linter):
-    '''Runs the Google Closure Compiler linter+prettier against |files|.'''
+    '''Runs oxfmt against |files|.'''
 
     # pylint: disable=R0903
 
@@ -387,7 +425,7 @@ class JavaScriptLinter(Linter):
 
 
 class TypeScriptLinter(Linter):
-    '''Runs prettier against |files|.'''
+    '''Runs oxfmt against |files|.'''
 
     # pylint: disable=R0903
 
@@ -397,7 +435,7 @@ class TypeScriptLinter(Linter):
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         try:
-            return SingleResult(_lint_prettier(contents, filename),
+            return SingleResult(_lint_oxfmt(contents, filename),
                                 ['typescript'])
         except subprocess.CalledProcessError as cpe:
             raise LinterException(
@@ -410,7 +448,7 @@ class TypeScriptLinter(Linter):
 
 
 class KarelLinter(Linter):
-    '''Runs prettier against |files|.'''
+    '''Runs oxfmt against |files|.'''
 
     # pylint: disable=R0903
 
@@ -420,7 +458,7 @@ class KarelLinter(Linter):
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         try:
-            return SingleResult(_lint_prettier(contents, filename),
+            return SingleResult(_lint_oxfmt(contents, filename),
                                 ['karel'])
         except subprocess.CalledProcessError as cpe:
             raise LinterException(
@@ -433,7 +471,7 @@ class KarelLinter(Linter):
 
 
 class MarkdownLinter(Linter):
-    '''Runs prettier against |files|.'''
+    '''Runs oxfmt against |files|.'''
 
     # pylint: disable=R0903
 
@@ -443,7 +481,7 @@ class MarkdownLinter(Linter):
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         try:
-            return SingleResult(_lint_prettier(contents, filename),
+            return SingleResult(_lint_oxfmt(contents, filename),
                                 ['markdown'])
         except subprocess.CalledProcessError as cpe:
             raise LinterException(
@@ -456,7 +494,7 @@ class MarkdownLinter(Linter):
 
 
 class JsonLinter(Linter):
-    '''Runs prettier against |files|.'''
+    '''Runs oxfmt against |files|.'''
 
     # pylint: disable=R0903
 
@@ -466,7 +504,7 @@ class JsonLinter(Linter):
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         try:
-            return SingleResult(_lint_prettier(contents, filename),
+            return SingleResult(_lint_oxfmt(contents, filename),
                                 ['json'])
         except subprocess.CalledProcessError as cpe:
             raise LinterException(
@@ -751,8 +789,8 @@ class VueLinter(Linter):
         if self.__options.get('stylelint', False):
             contents = _lint_stylelint(contents, filename)
 
-        # Finally, run prettier on the whole thing.
-        return SingleResult(_lint_prettier(contents, filename), ['vue'])
+        # Finally, run oxfmt on the whole thing.
+        return SingleResult(_lint_oxfmt(contents, filename), ['vue'])
 
     @property
     def name(self) -> Text:
@@ -771,8 +809,8 @@ class StyleLinter(Linter):
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
         contents = _lint_stylelint(contents, filename)
 
-        # Finally, run prettier on the whole thing.
-        return SingleResult(_lint_prettier(contents, filename), ['style'])
+        # Finally, run oxfmt on the whole thing.
+        return SingleResult(_lint_oxfmt(contents, filename), ['style'])
 
     @property
     def name(self) -> Text:
@@ -780,7 +818,7 @@ class StyleLinter(Linter):
 
 
 class HTMLLinter(Linter):
-    '''Runs HTML Tidy + prettier.'''
+    '''Runs HTML Tidy + oxfmt.'''
 
     # pylint: disable=R0903
 
@@ -792,8 +830,8 @@ class HTMLLinter(Linter):
         contents = _lint_html(
             contents, strict=bool(self.__options.get('strict', False)))
 
-        # Finally, run prettier on the whole thing.
-        return SingleResult(_lint_prettier(contents, filename), ['html'])
+        # Finally, run oxfmt on the whole thing.
+        return SingleResult(_lint_oxfmt(contents, filename), ['html'])
 
     @property
     def name(self) -> Text:
@@ -805,6 +843,9 @@ class PHPLinter(Linter):
 
     # pylint: disable=R0903
 
+    # ponytail: parallel phpcs first; phpcbf only on files that failed.
+    batch = True
+
     def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
         self.__options = options or {}
@@ -812,56 +853,82 @@ class PHPLinter(Linter):
             'standard',
             os.path.join(git_tools.HOOK_TOOLS_ROOT,
                          'data/phpcbf/Standards/OmegaUp/ruleset.xml'))
-        self.__common_args = ['--encoding=utf-8', f'--standard={standard}']
+        self.__common_args = [
+            '--encoding=utf-8',
+            f'--standard={standard}',
+            f'--parallel={os.cpu_count() or 1}',
+        ]
+
+    def _phpcs_check(self, paths: Sequence[str],
+                     path_to_name: Mapping[str, str],
+                     original: Mapping[str, bytes]) -> List[Diagnostic]:
+        '''Returns diagnostics from one parallel phpcs pass.'''
+        args = ([_which('phpcs'), '-s', '-q'] + self.__common_args
+                + ['--report=emacs'] + list(paths))
+        logging.debug('lint_php: Running %s', shlex.join(args))
+        result = subprocess.run(args,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                check=False)
+        if result.returncode == 0:
+            return []
+        output = result.stdout.decode('utf-8', errors='replace')
+        diagnostics = _parse_batch_diagnostics(output, None, path_to_name,
+                                               original)
+        if not diagnostics:
+            raise LinterException(
+                result.stderr.decode('utf-8', errors='replace') or output)
+        return diagnostics
+
+    def _lint(self, files: Sequence[Tuple[str, bytes]]) -> Dict[str, bytes]:
+        '''Parallel phpcs first; phpcbf only on files that failed.'''
+        if not files:
+            return {}
+        original = dict(files)
+        changed: Dict[str, bytes] = {}
+        with tempfile.TemporaryDirectory(prefix='php_linter_') as raw_tmpdir:
+            path_to_name = _write_batch_files(raw_tmpdir, files)
+            diagnostics = self._phpcs_check(list(path_to_name), path_to_name,
+                                            original)
+            if not diagnostics:
+                return {}
+            name_to_path = {name: path for path, name in path_to_name.items()}
+            failing = list(
+                dict.fromkeys(name_to_path[d.filename] for d in diagnostics))
+            subprocess.run([_which('phpcbf')] + self.__common_args + failing,
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE,
+                           check=False)
+            for path in failing:
+                filename = path_to_name[path]
+                with open(path, 'rb') as phpfile:
+                    fixed = phpfile.read()
+                if fixed != original[filename]:
+                    changed[filename] = fixed
+            unfixed = [d for d in diagnostics if d.filename not in changed]
+            if unfixed:
+                raise LinterException('phpcs lint errors',
+                                      fixable=False,
+                                      diagnostics=unfixed)
+        return changed
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
-        args = ([_which('phpcbf')] + self.__common_args
-                + [f'--stdin-path={filename}'])
-        logging.debug('lint_php: Running %s', shlex.join(args))
-        result = subprocess.run(args,
-                                input=contents,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                check=False)
+        changed = self._lint([(filename, contents)])
+        if filename not in changed:
+            return SingleResult(contents, ['php'])
+        return SingleResult(changed[filename], ['php'])
 
-        if result.returncode != 0:
-            logging.debug('lint_php: Return code %d, stderr = %s',
-                          result.returncode, result.stderr)
-            if not result.stdout:
-                # phpcbf returns 1 if there was no change to the file. If there
-                # was an actual error, there won't be anything in stdout.
-                raise LinterException(result.stderr.decode('utf-8'))
-
-        new_contents = result.stdout
-
-        if new_contents != contents:
-            # If phpcbf was able to fix anything, let's go with that instead of
-            # running phpcs. Otherwise, phpcs will return non-zero and the
-            # suggestions won't be used.
-            return SingleResult(new_contents, ['php'])
-
-        # Even if phpcbf didn't find anything, phpcs might.
-        args = ([_which('phpcs'), '-s', '-q'] + self.__common_args
-                + [f'--stdin-path={filename}', '--report=emacs'])
-        logging.debug('lint_php: Running %s', shlex.join(args))
-        result = subprocess.run(args,
-                                input=contents,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                check=False)
-
-        if result.returncode != 0:
-            logging.debug('lint_php: Return code %d, stdout = %s, stderr = %s',
-                          result.returncode, result.stdout, result.stderr)
-            raise LinterException(
-                'phpcs lint errors',
-                fixable=False,
-                diagnostics=_process_diagnostics_output(
-                    filename,
-                    lines=contents.decode('utf-8').split('\n'),
-                    output=result.stdout.decode('utf-8').strip()))
-
-        return SingleResult(new_contents, ['php'])
+    def run_all(self, filenames: Sequence[str],
+                contents_callback: ContentsCallback) -> MultipleResults:
+        files = [(filename, contents_callback(filename))
+                 for filename in filenames]
+        changed = self._lint(files)
+        return MultipleResults(
+            new_contents=changed,
+            original_contents={filename: contents
+                               for filename, contents in files
+                               if filename in changed},
+            violations=['php'])
 
     @property
     def name(self) -> Text:
@@ -878,6 +945,8 @@ class PythonLinter(Linter):
         self.__options = options or {}
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
+        # ponytail: keep pylint isolated per file; sharing one astroid cache
+        # resolves unrelated same-named modules across stuff/ subdirectories.
         diagnostics: List[Diagnostic] = []
         lines = contents.decode('utf-8').split('\n')
         with tempfile.TemporaryDirectory(prefix='python_linter_') as tmpdir:
@@ -911,8 +980,6 @@ class PythonLinter(Linter):
                                                 cpe.output.strip(),
                                                 toolname='pycodestyle'))
 
-            # We need to disable import-error/no-name-in-module since the file
-            # won't be checked in the repository, but in a temporary directory.
             args = [
                 python3,
                 '-m',
@@ -941,37 +1008,43 @@ class PythonLinter(Linter):
                                                 cpe.output.strip(),
                                                 toolname='pylint'))
 
-            if self.__options.get('mypy', False):
-                args = [
-                    _which('python3'),
-                    '-m',
-                    'mypy',
-                    '--show-column-numbers',
-                    '--strict',
-                    '--no-incremental',
-                    '--follow-imports=silent',
-                    filename,
-                ]
-                try:
-                    logging.debug('lint_python: Running %s', args)
-                    subprocess.run(args,
-                                   check=True,
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.STDOUT,
-                                   universal_newlines=True)
-                except subprocess.CalledProcessError as cpe:
-                    diagnostics.extend(
-                        _process_diagnostics_output(filename,
-                                                    lines,
-                                                    cpe.output.strip(),
-                                                    toolname='mypy'))
-
         if diagnostics:
             diagnostics.sort(key=lambda d: d.lineno or 0)
             raise LinterException('Python lint errors',
                                   fixable=False,
                                   diagnostics=diagnostics)
         return SingleResult(contents, [])
+
+    def run_all(self, filenames: Sequence[str],
+                contents_callback: ContentsCallback) -> MultipleResults:
+        # ponytail: one mypy. Per-file --no-incremental existed so parallel
+        # processes would not race on the cache.
+        if not self.__options.get('mypy', False) or not filenames:
+            return MultipleResults(new_contents={}, original_contents={})
+        args = [
+            _which('python3'),
+            '-m',
+            'mypy',
+            '--show-column-numbers',
+            '--strict',
+            '--follow-imports=silent',
+            *filenames,
+        ]
+        logging.debug('lint_python: Running %s', args)
+        result = subprocess.run(args,
+                                check=False,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT,
+                                universal_newlines=True)
+        if result.returncode != 0:
+            original = {name: contents_callback(name) for name in filenames}
+            raise LinterException(
+                'Python lint errors',
+                fixable=False,
+                diagnostics=_parse_batch_diagnostics(
+                    result.stdout, 'mypy', {name: name for name in filenames},
+                    original))
+        return MultipleResults(new_contents={}, original_contents={})
 
     @property
     def name(self) -> Text:
@@ -1021,100 +1094,71 @@ class ClangFormatLinter(Linter):
         return 'clang-format'
 
 
-class EslintLinter(Linter):
-    '''Runs eslint.'''
+class OxlintLinter(Linter):
+    '''Runs oxlint.'''
 
     # pylint: disable=R0903
+
+    # ponytail: one oxlint process over relative paths instead of N tmpfiles.
+    batch = True
 
     def __init__(self, options: Optional[Options] = None) -> None:
         super().__init__()
         del options
-        self.__lock = threading.Lock()
-        self.__eslint_state: Optional[Tuple[int, str]] = None
 
-    def _get_port_and_token(self) -> Tuple[int, str]:
-        if self.__eslint_state is None:
-            with self.__lock:
-                if self.__eslint_state is None:
-                    args = [
-                        _which('npx'),
-                        'eslint_d',
-                        'start',
-                    ]
-                    logging.debug('lint_eslint: Running %s', args)
-                    subprocess.check_call(args,
-                                          env={
-                                              **os.environ, 'HOME': '/tmp'
-                                          })
-                    with open('/tmp/.eslint_d', encoding='utf-8') as portfile:
-                        port_str, token = portfile.read().strip().split()
-                    self.__eslint_state = (int(port_str), token)
-        return self.__eslint_state
+    def _lint(self, files: Sequence[Tuple[str, bytes]]) -> Dict[str, bytes]:
+        if not files:
+            return {}
+        original = dict(files)
+        changed: Dict[str, bytes] = {}
+        with tempfile.TemporaryDirectory(
+                prefix='oxlint_linter_') as raw_tmpdir:
+            path_to_name = _write_batch_files(raw_tmpdir, files)
+            args = ([_which('oxlint'), '--fix', '--deny-warnings', '-f',
+                     'unix'] + list(path_to_name))
+            config = os.path.join(os.getcwd(), '.oxlintrc.json')
+            if os.path.isfile(config):
+                args[1:1] = ['-c', config]
+            logging.debug('lint_oxlint: Running %s', args)
+            result = subprocess.run(args,
+                                    check=False,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT,
+                                    universal_newlines=True)
+            if result.returncode != 0:
+                raise LinterException(
+                    'oxlint errors',
+                    fixable=False,
+                    diagnostics=_parse_batch_diagnostics(
+                        result.stdout, 'oxlint', path_to_name, original))
+            for path, filename in path_to_name.items():
+                with open(path, 'rb') as fixed_file:
+                    fixed = fixed_file.read()
+                if fixed != original[filename]:
+                    changed[filename] = fixed
+        return changed
 
     def run_one(self, filename: str, contents: bytes) -> SingleResult:
-        port, token = self._get_port_and_token()
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.connect(('localhost', port))
-            args = [
-                token,
-                os.getcwd(),
-                '--fix-dry-run',
-                '--stdin',
-                '--stdin-filename',
-                filename,
-                '--format=json',
-                '--cache',
-            ]
-            logging.debug('lint_eslint: Running %s', args)
-            sock.sendall(shlex.join(args).encode('utf-8') + b'\n')
-            sock.sendall(contents)
-            sock.shutdown(socket.SHUT_WR)
-
-            stdout_chunks: List[bytes] = []
-            while True:
-                chunk = sock.recv(4096)
-                if not chunk:
-                    break
-                stdout_chunks.append(chunk)
-            stdout = (b''.join(stdout_chunks)).decode('utf-8')
-            try:
-                reports = json.loads(stdout)
-            except json.decoder.JSONDecodeError as jde:
-                # If there's extra data, let's just ignore it and try once
-                # more.
-                if jde.msg != 'Extra data':
-                    raise
-                reports = json.loads(stdout[:jde.pos])
-            assert len(reports) == 1, reports
-            report = reports[0]
-
-            if len(report['messages']) > 0:
-                lines = contents.decode('utf-8').split('\n')
-                diagnostics = [
-                    Diagnostic(
-                        message=(f'[eslint] {message["message"]} '
-                                 f'[{message["ruleId"]}]'),
-                        filename=filename,
-                        line=lines[message['line'] - 1],
-                        lineno=message['line'],
-                        col=message['column'],
-                        col_end=(message['endColumn']
-                                 if 'endColumn' in message else None),
-                    ) for message in report['messages']
-                ]
-                raise LinterException('Eslint lint errors',
-                                      fixable=False,
-                                      diagnostics=diagnostics)
-            if 'output' in report:
-                # There were fixable errors.
-                return SingleResult(report['output'].encode('utf-8'),
-                                    ['eslint'])
-
+        changed = self._lint([(filename, contents)])
+        if filename not in changed:
             return SingleResult(contents, [])
+        return SingleResult(changed[filename], ['oxlint'])
+
+    def run_all(self, filenames: Sequence[str],
+                contents_callback: ContentsCallback) -> MultipleResults:
+        files = [(filename, contents_callback(filename))
+                 for filename in filenames]
+        changed = self._lint(files)
+        return MultipleResults(
+            new_contents=changed,
+            original_contents={filename: contents
+                               for filename, contents in files
+                               if filename in changed},
+            violations=['oxlint'])
 
     @property
     def name(self) -> Text:
-        return 'eslint'
+        return 'oxlint'
 
 
 class CustomLinter(Linter):

@@ -23,7 +23,7 @@ LinterFactory = Callable[..., linters.Linter]
 
 _LINTER_MAPPING: Dict[Text, LinterFactory] = {
     'clang-format': linters.ClangFormatLinter,
-    'eslint': linters.EslintLinter,
+    'oxlint': linters.OxlintLinter,
     'html': linters.HTMLLinter,
     'javascript': linters.JavaScriptLinter,
     'json': linters.JsonLinter,
@@ -211,24 +211,33 @@ def _run_linter(
         filenames: Sequence[Text], validate_only: bool,
         diagnostics_output: DiagnosticsOutput) -> Tuple[Set[Text], bool]:
     '''Runs the linter against all files.'''
+    if not filenames:
+        return set(), False
     logging.debug('%s: Files to consider: %s', linter.name,
                   ' '.join(filenames))
     logging.debug('%s: Running with %d threads', linter.name, args.jobs)
-    files = dict((filename, git_tools.file_contents(args, _ROOT, filename))
-                 for filename in filenames)
-    with concurrent.futures.ThreadPoolExecutor(
-            max_workers=args.jobs) as executor:
-        futures = [
-            executor.submit(_run_linter_one, linter, filename, contents,
-                            validate_only, diagnostics_output)
-            for filename, contents in files.items()
-        ]
-        results = [
-            f.result() for f in concurrent.futures.as_completed(futures)
-        ]
-    results.extend(
-        _run_linter_all(args, linter, filenames, validate_only,
-                        diagnostics_output))
+    # ponytail: batch linters already launch one process. A thread per file
+    # would run that work once per file.
+    if getattr(linter, 'batch', False):
+        results = list(
+            _run_linter_all(args, linter, filenames, validate_only,
+                            diagnostics_output))
+    else:
+        files = dict((filename, git_tools.file_contents(args, _ROOT, filename))
+                     for filename in filenames)
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=args.jobs) as executor:
+            futures = [
+                executor.submit(_run_linter_one, linter, filename, contents,
+                                validate_only, diagnostics_output)
+                for filename, contents in files.items()
+            ]
+            results = [
+                f.result() for f in concurrent.futures.as_completed(futures)
+            ]
+        results.extend(
+            _run_linter_all(args, linter, filenames, validate_only,
+                            diagnostics_output))
     return (set(violation for violation, _ in results
                 if violation is not None),
             any(fixable for _, fixable in results))
@@ -328,6 +337,9 @@ def main() -> None:
         filtered_files = [
             filename for filename in filtered_files
             if all(not r.match(filename) for r in denylist)]
+        # ponytail: skip linters when 0 files match allowlist/denylist.
+        if not filtered_files:
+            continue
         local_violations, local_fixable = _run_linter(
             args, linter(options), filtered_files,
             validate_only, args.diagnostics_output)

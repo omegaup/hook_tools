@@ -23,11 +23,12 @@ linters soportados (con sus respectivas opciones) son:
 * `clang-format`: Corre [ClangFormat](https://clang.llvm.org/docs/ClangFormat.html).
 * `html`: Corre HTML Tidy.
   * `strict`: Un bool que indica si se va a correr en modo estricto
-* `javascript`: Corre el linter de [Prettier](https://prettier.io).
+* `javascript`: Corre el formateador [Oxfmt](https://oxc.rs/docs/guide/usage/formatter).
+* `oxlint`: Corre [Oxlint](https://oxc.rs/docs/guide/usage/linter).
   * `extra_js_linters`: Un arreglo con comandos que se van a correr.
-* `json`: Corre el linter de [Prettier](https://prettier.io).
-* `karel`: Corre el linter de [Prettier](https://prettier.io).
-* `markdown`: Corre el linter de [Prettier](https://prettier.io).
+* `json`: Corre el formateador [Oxfmt](https://oxc.rs/docs/guide/usage/formatter).
+* `karel`: Corre el formateador [Oxfmt](https://oxc.rs/docs/guide/usage/formatter).
+* `markdown`: Corre el formateador [Oxfmt](https://oxc.rs/docs/guide/usage/formatter).
 * `php`: Corre PHP Code Beautifier.
   * `standard`: Una cadena con la ruta del estándar de phpcbf.
 * `problematic-terms`: Busca términos problemáticos.
@@ -43,7 +44,7 @@ linters soportados (con sus respectivas opciones) son:
 * `whitespace`: Elimina molestos espacios en blanco, como espacios al final de
   la línea, múltiples líneas vacías, saltos de línea estilo Windows.
 * `style`: Corre [stylelint](https://stylelint.io/).
-* `typescript`: Corre el linter de [Prettier](https://prettier.io).
+* `typescript`: Corre el formateador [Oxfmt](https://oxc.rs/docs/guide/usage/formatter).
 * `vue`: Corre los linters de `javascript` y `html` en las distintas secciones
   de un Vue template.
   * `extra_js_linters`: Un arreglo con comandos que se van a correr en la

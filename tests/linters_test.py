@@ -64,7 +64,7 @@ class TestLinters(unittest.TestCase):
                          linters.SingleResult(b'HELLO, WORLD!\n', ['command']))
 
     def test_javascript(self) -> None:
-        """Tests JavaScriptLinter."""
+        """Tests JavaScriptLinter and OxlintLinter."""
 
         linter = linters.JavaScriptLinter()
 
@@ -77,6 +77,12 @@ class TestLinters(unittest.TestCase):
             linter.run_one('test.js', b'#!/usr/bin/node\nreturn;\n'),
             linters.SingleResult(b'#!/usr/bin/node\nreturn;\n',
                                  ['javascript']))
+
+        oxlint = linters.OxlintLinter()
+        changed, _, _ = oxlint.run_all(
+            ['clean.js'],
+            lambda _: b'const answer = 42;\nexport default answer;\n')
+        self.assertEqual(changed, {})
 
     def test_vue(self) -> None:
         """Tests VueLinter."""
@@ -115,7 +121,7 @@ class TestLinters(unittest.TestCase):
                 'test.html', b'<!DOCTYPE html>\n<html><head><title /></head>'
                 b'<body>\n<input/></body></html>\n'),
             linters.SingleResult(
-                b'<!DOCTYPE html>\n<html>\n  <head>\n    <title></title>\n'
+                b'<!doctype html>\n<html>\n  <head>\n    <title></title>\n'
                 b'  </head>\n  <body>\n    <input />\n  </body>\n</html>\n',
                 ['html']))
 
@@ -127,6 +133,12 @@ class TestLinters(unittest.TestCase):
         self.assertEqual(
             linter.run_one('test.php', b'<?php\necho array("foo");'),
             linters.SingleResult(b'<?php\necho [\'foo\'];\n', ['php']))
+        changed, _, _ = linter.run_all(
+            ['a.php', 'b.php'],
+            lambda filename: (b'<?php\necho array("foo");'
+                              if filename == 'a.php' else
+                              b'<?php\necho [\'bar\'];\n'))
+        self.assertEqual(changed, {'a.php': b'<?php\necho [\'foo\'];\n'})
 
     def test_python(self) -> None:
         """Tests PythonLinter."""
